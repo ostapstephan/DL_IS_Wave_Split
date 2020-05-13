@@ -5,14 +5,15 @@ import numpy as np
 from tqdm import tqdm
 import gc
 from IPython import embed
+
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 import soundfile as sf
 TOTAL_VAR = 0
 
-# physical_devices = tf.config.experimental.list_physical_devices('GPU')
-# assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
-# tf.config.experimental.set_memory_growth(physical_devices[0], True)
+physical_devices = tf.config.experimental.list_physical_devices('GPU')
+assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
+tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 
 def _parse_batch(record_batch, sample_rate, duration):
@@ -43,6 +44,7 @@ def get_dataset_from_tfrecords(tfrecords_dir='tfrecords', split='train', batch_s
 
     # Read TFRecord files in an interleaved order
     ds = tf.data.TFRecordDataset(files_ds,compression_type='ZLIB',num_parallel_reads=8)
+    del files_ds
     # load batch size examples
     ds = ds.batch(batch_size)
 
@@ -238,7 +240,7 @@ class Conv_1D_Block(object):
         return conv1x1_2_skip_b
 
     def section_6(self,input_tensor):
-
+        print('section_6 input , weight[0], weights[1]',input_tensor.shape,self.weights[7][0].shape,self.weights[7][1].shape)
         conv1x1_3_output = tf.nn.conv1d(input_tensor,self.weights[7][0],stride=1,padding="SAME")
         conv1x1_3_output_b = tf.add(conv1x1_3_output,self.weights[7][1])
         del conv1x1_3_output
@@ -429,7 +431,6 @@ class SeparationStack(object):
         tf.keras.backend.clear_session()
         return
 
-    #@profile
     def forward_pass(self,input_tensor):
         ##print(tf.shape(input_tensor))
         layernorm_1 = self.weights_shape[0][0](input_tensor)
@@ -481,7 +482,7 @@ class Model(object):
         # Initialize the weights to `5.0` and the bias to `0.0`
         # In practice, these should be initialized to random values (for example, with `tf.random.normal`)
         self.epoch = 0
-        self.num_epochs = 1
+        self.num_epochs = 22
         self.input_shape = input_shape
 
         #self.shapes = self.get_shape()
@@ -519,7 +520,7 @@ class Model(object):
             self.append_weights(weights[i])
 
     def loss(self, target, pred):
-        label0 = tf.squeeze(tf.stack([target, tf.roll(target,1+self.epoch,axis=0)],axis=2))
+        label0 = tf.squeeze(tf.stack([target, tf.roll(target,1+self.epoch,axis=0)],axis=2), axis = -1)
         #lablel1 = label[:,:,0],label[:,:,1]
         label1= tf.Variable([label0[:,:,1],label0[:,:,0]])
         label1 =tf.transpose(label1,[1,2,0])
@@ -532,12 +533,13 @@ class Model(object):
         #    for j in range(2): # for speaker 0,1
         #        sf.write(f'mixed/l0_{i}_{j}.wav', label0[i,:,j], 8000, 'PCM_16')
         # sf.write(f'mixed/l1_{i}_{j}.wav', label1[i,:,j], 8000, 'PCM_16')
+
         l0 = tf.losses.mean_squared_error(label0, pred )
         l1 = tf.losses.mean_squared_error(label1, pred )
 
         a = tf.math.reduce_mean(l0)
         b = tf.math.reduce_mean(l1)
-        embed()
+
         if a < b:
             return l0
             # idk why but this is shape [batch,40000] not [batch,] or
@@ -560,43 +562,56 @@ class Model(object):
 
     def train_step( self, inputs ):
         with tf.GradientTape() as tape:
-            current_loss = self.loss( self.forward_pass( inputs ), inputs )
-        grads = tape.gradient( current_loss, self.weights )
-        self.optimizer.apply_gradients( zip( grads , self.weights ) )
+            print('train step\t', inputs.shape)
+            current_loss = self.loss(  inputs, self.forward_pass( inputs ) )
+            #grads = tape.gradient( current_loss, self.weights_training )
+            embed()
+            self.optimizer.apply_gradients( zip(tape.gradient( current_loss, self.weights_training ) , self.weights_training ) )
+            embed()
+
         # #print( tf.reduce_mean( current_loss ).numpy() )
 
     def fit(self, dataset):
-
         for self.epoch in range( self.num_epochs ):
             # i = 0
             for features in tqdm(dataset):
                 # i+=1
-                audio, label = features[0] , features[1]
-                self.train_step( self.forward_pass , audio  )
-
+                audio, label = tf.expand_dims(features[0],2) , features[1]
+                a = self.weights_training[0][:,:,:10]
+                self.train_step( audio
+                break
+            break
                 # if i == 50 :
                     # break
 
 def main():
     # Train
     tf.config.set_soft_device_placement(True) #runs on cpu if gpu isn't availible
-    train_ds = get_dataset_from_tfrecords(tfrecords_dir='/share/audiobooks/tf_records',batch_size=10)
+    train_ds = get_dataset_from_tfrecords(tfrecords_dir='/share/audiobooks/tf_records',batch_size=2)
     # 22 on gpu 0 is max rn
     # 12 on gpu 1
 
+    # this is so we get the input shape of the dataset
     for i in train_ds:
-        model = Model(tf.shape(tf.expand_dims(i[0],2)),7,2)
+        model = Model(tf.shape(tf.expand_dims(i[0],2)),1,1)
         break
-    counter = 0
 
-    for i in train_ds:
-        print(counter)
-        counter+=1
+    print('first',tf.expand_dims(i[0],2))
+    #cost = model.loss(tf.expand_dims(i[0],2), model.forward_pass(tf.expand_dims(i[0],2)) )
 
-        cost = model.loss(tf.expand_dims(i[0],2), model.forward_pass(tf.expand_dims(i[0],2)) )
-        print(tf.reduce_mean(cost))
+    model.train_step( tf.expand_dims(i[0],2) )
+    # model.fit(train_ds)
 
-        break
+    # counter = 0
+    # for i in train_ds:
+    #     cost = model.loss(tf.expand_dims(i[0],2), model.forward_pass(tf.expand_dims(i[0],2)) )
+    #     print(counter)
+    #     counter+=1
+    #
+    #     cost = model.loss(tf.expand_dims(i[0],2), model.forward_pass(tf.expand_dims(i[0],2)) )
+    #     print(tf.reduce_mean(cost))
+    #
+    #     break
 
 
     #embed()
@@ -634,6 +649,7 @@ def main():
 
     # model.fit(train_ds, epochs=10)
     # '''
+
 
 if __name__ == '__main__':
     main()
