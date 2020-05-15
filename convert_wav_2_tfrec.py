@@ -10,8 +10,8 @@ import tensorflow as tf
 # https://towardsdatascience.com/how-to-build-efficient-audio-data-pipelines-with-tensorflow-2-0-b3133474c3c1
 # for making this easy to do
 
-_BASE_DIR = os.path.dirname('/share/audiobooks/')
-_loc_BASE_DIR = os.path.dirname('/home/ostap/Documents/DL_Ind_Study/')
+_BASE_DIR = os.path.dirname('/home/car-sable/libre_data/')
+_loc_BASE_DIR = os.path.dirname('/home/car-sable/libre_data/')
 
 _DEFAULT_META_CSV = os.path.join(_loc_BASE_DIR, 'meta_id.csv')
 _DEFAULT_OUTPUT_DIR = os.path.join(_BASE_DIR, 'tf_records/')

@@ -135,11 +135,9 @@ def gabariofunction():
 
 
 gabariofunction()
-for w in weights:
-    print(w.shape)
 
 #@profile
-#@tf.function
+@tf.function
 def big_gabario_forward_pass(input_tensor):
 
     global weights
@@ -147,57 +145,30 @@ def big_gabario_forward_pass(input_tensor):
     #conv 1d block
     #####################################################################################################################
     #encoder
-    enc_conv1x1_1 = tf.nn.conv1d(input_tensor, weights[0],stride=1,padding="SAME",dilations=1).numpy()
-    print(enc_conv1x1_1.shape,'enc_conv1x1_1')
+    enc_conv1x1_1 = tf.nn.conv1d(input_tensor, weights[0],stride=1,padding="SAME",dilations=1)
     enc_conv1x1_1_b = tf.add(enc_conv1x1_1,weights[1])
-    del enc_conv1x1_1
-    print(enc_conv1x1_1_b.shape,'enc_conv1x1_1_b')
 
-    enc_prelu1 = enc_conv1x1_1_b #parametric_relu(, weights[2])
-    del enc_conv1x1_1_b
-    print(enc_prelu1.shape,'enc_prelu1')
+    enc_prelu1 = parametric_relu(enc_conv1x1_1_b, weights[2])
 
-    enc_LayerNorm1 = tf.nn.dropout(enc_prelu1,rate= .1 ).numpy()
-    del enc_prelu1
-    print(enc_LayerNorm1.shape,'enc_LayerNorm1')
+    enc_LayerNorm1 = tf.nn.dropout(enc_prelu1,rate= .1 )
 
-    enc_deconv1 = tf.nn.conv1d(enc_LayerNorm1, weights[3], stride=1, padding="SAME").numpy()
-    del enc_LayerNorm1
-    print(enc_deconv1.shape,'enc_deconv1')
+    enc_deconv1 = tf.nn.conv1d(enc_LayerNorm1, weights[3], stride=1, padding="SAME")
     enc_deconv1_b = tf.add(enc_deconv1,weights[4])
-    del enc_deconv1
-    print(enc_deconv1_b.shape,'enc_deconv1_b')
 
-    enc_prelu2 = enc_deconv1_b #parametric_relu(, weights[5])
-    del enc_deconv1_b
-    print(enc_prelu2.shape,'enc_prelu2')
+    enc_prelu2 = parametric_relu(enc_deconv1_b, weights[5])
 
-    enc_LayerNorm2 = tf.nn.dropout(enc_prelu2,rate= .1 ).numpy()
-    del enc_prelu2
-    print(enc_LayerNorm2.shape,'enc_LayerNorm2')
+    enc_LayerNorm2 = tf.nn.dropout(enc_prelu2,rate= .1 )
 
-    enc_conv1x1_2_skip = tf.nn.conv1d(enc_LayerNorm2,weights[6],stride=1,padding="SAME").numpy()
-    print(enc_conv1x1_2_skip.shape,'enc_conv1x1_2_skip')
+    enc_conv1x1_2_skip = tf.nn.conv1d(enc_LayerNorm2,weights[6],stride=1,padding="SAME") #to skip connection
     enc_conv1x1_2_skip_b = tf.add(enc_conv1x1_2_skip,weights[7])
-    del enc_conv1x1_2_skip
-    print(enc_conv1x1_2_skip_b.shape,'enc_conv1x1_2_skip_b')
-    enc_conv1x1_3_output = tf.nn.conv1d(enc_LayerNorm2, weights[8],stride=1,padding="SAME").numpy()
-    del enc_LayerNorm2
-    print(enc_conv1x1_3_output.shape,'enc_conv1x1_3_output')
+    enc_conv1x1_3_output = tf.nn.conv1d(enc_LayerNorm2, weights[8],stride=1,padding="SAME")
     enc_conv1x1_3_output_b = tf.add(enc_conv1x1_3_output,weights[9])
-    del enc_conv1x1_3_output
-    print(enc_conv1x1_3_output_b.shape,'enc_conv1x1_3_output_b')
 
     #separation_stack
-    sep_LayerNorm1 = tf.nn.dropout(enc_conv1x1_3_output_b,rate= .1 ).numpy()
-    print(sep_LayerNorm1.shape,'sep_LayerNorm1')
+    sep_LayerNorm1 = tf.nn.dropout(enc_conv1x1_3_output_b,rate= .1 )
 
     sep_conv1x1_1 = tf.nn.conv1d(sep_LayerNorm1, weights[10],stride=1,padding="SAME",dilations=1)
-    del sep_LayerNorm1
-    print(sep_conv1x1_1.shape,'sep_conv1x1_1')
     sep_conv1x1_1_b = tf.add(sep_conv1x1_1,weights[11]) #TODO add the rest of the biases to the model explicitly
-    del sep_conv1x1_1
-    print(sep_conv1x1_1_b.shape,'sep_conv1x1_1_b')
 
 
     ##############################################################################################
@@ -208,674 +179,501 @@ def big_gabario_forward_pass(input_tensor):
 
     running_sum = 0
     i=1
-    block_0_conv1x1_1 = tf.nn.conv1d( sep_conv1x1_1_b , weights[12],stride=1,padding="SAME",dilations= i).numpy()
-    print(block_0_conv1x1_1.shape,'block_0_conv1x1_1')
+    block_0_conv1x1_1 = tf.nn.conv1d( sep_conv1x1_1_b , weights[12],stride=1,padding="SAME",dilations= i)
     block_0_conv1x1_1_b = tf.add(block_0_conv1x1_1,weights[13]) #TODO add the rest of the biases to the model explicitly
-    print(block_0_conv1x1_1_b.shape,'block_0_conv1x1_1_b')
     del block_0_conv1x1_1
 
-    block_0_prelu1 = block_0_conv1x1_1_b #parametric_relu(, weights[14])
-    print(block_0_prelu1.shape,'block_0_prelu1')
+    block_0_prelu1 = parametric_relu(block_0_conv1x1_1_b, weights[14])
     del block_0_conv1x1_1_b
 
-    block_0_LayerNorm1 = tf.nn.dropout(block_0_prelu1,rate= .1 ).numpy()
-    print(block_0_LayerNorm1.shape,'block_0_LayerNorm1')
-    print(block_0_LayerNorm1.shape,'block_0_LayerNorm1')
+    block_0_LayerNorm1 = tf.nn.dropout(block_0_prelu1,rate= .1 )
     del block_0_prelu1
 
-    block_0_deconv1 = tf.nn.conv1d(block_0_LayerNorm1, weights[15], stride=1, padding="SAME").numpy()
-    print(block_0_deconv1.shape,'block_0_deconv1')
+    block_0_deconv1 = tf.nn.conv1d(block_0_LayerNorm1, weights[15], stride=1, padding="SAME")
     del block_0_LayerNorm1
     block_0_deconv1_b = tf.add(block_0_deconv1,weights[16])
-    print(block_0_deconv1_b.shape,'block_0_deconv1_b')
     del block_0_deconv1
 
-    block_0_prelu2 = block_0_deconv1_b #parametric_relu(, weights[17])
-    print(block_0_prelu2.shape,'block_0_prelu2')
+    block_0_prelu2 = parametric_relu(block_0_deconv1_b, weights[17])
     del block_0_deconv1_b
 
-    block_0_LayerNorm2 = tf.nn.dropout(block_0_prelu2,rate= .1 ).numpy()
-    print(block_0_LayerNorm2.shape,'block_0_LayerNorm2')
+    block_0_LayerNorm2 = tf.nn.dropout(block_0_prelu2,rate= .1 )
     del block_0_prelu2
 
-    block_0_conv1x1_2_skip = tf.nn.conv1d(block_0_LayerNorm2,weights[18],stride=1,padding="SAME").numpy() 
-    print(block_0_conv1x1_2_skip.shape,'block_0_conv1x1_2_skip')
+    block_0_conv1x1_2_skip = tf.nn.conv1d(block_0_LayerNorm2,weights[18],stride=1,padding="SAME") #to skip connection
     block_0_conv1x1_2_skip_b = tf.add(block_0_conv1x1_2_skip,weights[19])
-    print(block_0_conv1x1_2_skip_b.shape,'block_0_conv1x1_2_skip_b')
     running_sum = block_0_conv1x1_2_skip_b
     del block_0_conv1x1_2_skip
     del block_0_conv1x1_2_skip_b
 
-    block_0_conv1x1_3_output = tf.nn.conv1d(block_0_LayerNorm2, weights[20],stride=1,padding="SAME").numpy()
-    print(block_0_conv1x1_3_output.shape,'block_0_conv1x1_3_output')
+    block_0_conv1x1_3_output = tf.nn.conv1d(block_0_LayerNorm2, weights[20],stride=1,padding="SAME")
     block_0_conv1x1_3_output_b = tf.add(block_0_conv1x1_3_output,weights[21])
-    print(block_0_conv1x1_3_output_b.shape,'block_0_conv1x1_3_output_b')
     del block_0_LayerNorm2
     del block_0_conv1x1_3_output
 
+    
 
-
-    i*=2
-    block_1_conv1x1_1 = tf.nn.conv1d( block_0_conv1x1_3_output_b , weights[22],stride=1,padding="SAME",dilations= i).numpy()
-    print(block_1_conv1x1_1.shape,'block_1_conv1x1_1')
+    #i*=2
+    block_1_conv1x1_1 = tf.nn.conv1d( block_0_conv1x1_3_output_b , weights[22],stride=1,padding="SAME",dilations= i)
     block_1_conv1x1_1_b = tf.add(block_1_conv1x1_1,weights[23]) #TODO add the rest of the biases to the model explicitly
-    print(block_1_conv1x1_1_b.shape,'block_1_conv1x1_1_b')
     del block_1_conv1x1_1
 
-    block_1_prelu1 = block_1_conv1x1_1_b #parametric_relu(, weights[24])
-    print(block_1_prelu1.shape,'block_1_prelu1')
+    block_1_prelu1 = parametric_relu(block_1_conv1x1_1_b, weights[24])
     del block_1_conv1x1_1_b
 
-    block_1_LayerNorm1 = tf.nn.dropout(block_1_prelu1,rate= .1 ).numpy()
-    print(block_1_LayerNorm1.shape,'block_1_LayerNorm1')
+    block_1_LayerNorm1 = tf.nn.dropout(block_1_prelu1,rate= .1 )
     del block_1_prelu1
 
-    block_1_deconv1 = tf.nn.conv1d(block_1_LayerNorm1, weights[25], stride=1, padding="SAME").numpy()
-    print(block_1_deconv1.shape,'block_1_deconv1')
+    block_1_deconv1 = tf.nn.conv1d(block_1_LayerNorm1, weights[25], stride=1, padding="SAME")
     del block_1_LayerNorm1
     block_1_deconv1_b = tf.add(block_1_deconv1,weights[26])
-    print(block_1_deconv1_b.shape,'block_1_deconv1_b')
     del block_1_deconv1
 
-    block_1_prelu2 = block_1_deconv1_b #parametric_relu(, weights[27])
-    print(block_1_prelu2.shape,'block_1_prelu2')
+    block_1_prelu2 = parametric_relu(block_1_deconv1_b, weights[27])
     del block_1_deconv1_b
 
-    block_1_LayerNorm2 = tf.nn.dropout(block_1_prelu2,rate= .1 ).numpy()
-    print(block_1_LayerNorm2.shape,'block_1_LayerNorm2')
+    block_1_LayerNorm2 = tf.nn.dropout(block_1_prelu2,rate= .1 )
     del block_1_prelu2
 
-    block_1_conv1x1_2_skip = tf.nn.conv1d(block_1_LayerNorm2,weights[28],stride=1,padding="SAME") .numpy()
-    print(block_1_conv1x1_2_skip.shape,'block_1_conv1x1_2_skip')
+    block_1_conv1x1_2_skip = tf.nn.conv1d(block_1_LayerNorm2,weights[28],stride=1,padding="SAME") #to skip connection
     block_1_conv1x1_2_skip_b = tf.add(block_1_conv1x1_2_skip,weights[29])
-    print(block_1_conv1x1_2_skip_b.shape,'block_1_conv1x1_2_skip_b')
     running_sum += block_1_conv1x1_2_skip_b
     del block_1_conv1x1_2_skip
     del block_1_conv1x1_2_skip_b
 
-    block_1_conv1x1_3_output = tf.nn.conv1d(block_1_LayerNorm2, weights[30],stride=1,padding="SAME").numpy()
-    print(block_1_conv1x1_3_output.shape,'block_1_conv1x1_3_output')
+    block_1_conv1x1_3_output = tf.nn.conv1d(block_1_LayerNorm2, weights[30],stride=1,padding="SAME")
     block_1_conv1x1_3_output_b = tf.add(block_1_conv1x1_3_output,weights[31])
-    print(block_1_conv1x1_3_output_b.shape,'block_1_conv1x1_3_output_b')
     del block_1_LayerNorm2
     del block_1_conv1x1_3_output
 
 
 
-    i*=2
-    block_2_conv1x1_1 = tf.nn.conv1d( block_1_conv1x1_3_output_b , weights[32],stride=1,padding="SAME",dilations= i).numpy()
-    print(block_2_conv1x1_1.shape,'block_2_conv1x1_1')
+    #i*=2
+    block_2_conv1x1_1 = tf.nn.conv1d( block_1_conv1x1_3_output_b , weights[32],stride=1,padding="SAME",dilations= i)
     block_2_conv1x1_1_b = tf.add(block_2_conv1x1_1,weights[33]) #TODO add the rest of the biases to the model explicitly
-    print(block_2_conv1x1_1_b.shape,'block_2_conv1x1_1_b')
     del block_2_conv1x1_1
 
-    block_2_prelu1 = block_2_conv1x1_1_b #parametric_relu(, weights[34])
-    print(block_2_prelu1.shape,'block_2_prelu1')
+    block_2_prelu1 = parametric_relu(block_2_conv1x1_1_b, weights[34])
     del block_2_conv1x1_1_b
 
-    block_2_LayerNorm1 = tf.nn.dropout(block_2_prelu1,rate= .1 ).numpy()
-    print(block_2_LayerNorm1.shape,'block_2_LayerNorm1')
+    block_2_LayerNorm1 = tf.nn.dropout(block_2_prelu1,rate= .1 )
     del block_2_prelu1
 
-    block_2_deconv1 = tf.nn.conv1d(block_2_LayerNorm1, weights[35], stride=1, padding="SAME").numpy()
-    print(block_2_deconv1.shape,'block_2_deconv1')
+    block_2_deconv1 = tf.nn.conv1d(block_2_LayerNorm1, weights[35], stride=1, padding="SAME")
     del block_2_LayerNorm1
     block_2_deconv1_b = tf.add(block_2_deconv1,weights[36])
-    print(block_2_deconv1_b.shape,'block_2_deconv1_b')
     del block_2_deconv1
 
-    block_2_prelu2 = block_2_deconv1_b #parametric_relu(, weights[37])
-    print(block_2_prelu2.shape,'block_2_prelu2')
+    block_2_prelu2 = parametric_relu(block_2_deconv1_b, weights[37])
     del block_2_deconv1_b
 
-    block_2_LayerNorm2 = tf.nn.dropout(block_2_prelu2,rate= .1 ).numpy()
-    print(block_2_LayerNorm2.shape,'block_2_LayerNorm2')
+    block_2_LayerNorm2 = tf.nn.dropout(block_2_prelu2,rate= .1 )
     del block_2_prelu2
 
-
-    block_2_conv1x1_2_skip = tf.nn.conv1d(block_2_LayerNorm2,weights[38],stride=1,padding="SAME") .numpy()
-    print(block_2_conv1x1_2_skip.shape,'block_2_conv1x1_2_skip')
+    block_2_conv1x1_2_skip = tf.nn.conv1d(block_2_LayerNorm2,weights[38],stride=1,padding="SAME") #to skip connection
     block_2_conv1x1_2_skip_b = tf.add(block_2_conv1x1_2_skip,weights[39])
-    print(block_2_conv1x1_2_skip_b.shape,'block_2_conv1x1_2_skip_b')
     running_sum += block_2_conv1x1_2_skip_b
     del block_2_conv1x1_2_skip
     del block_2_conv1x1_2_skip_b
 
-    block_2_conv1x1_3_output = tf.nn.conv1d(block_2_LayerNorm2, weights[40],stride=1,padding="SAME").numpy()
-    print(block_2_conv1x1_3_output.shape,'block_2_conv1x1_3_output')
+    block_2_conv1x1_3_output = tf.nn.conv1d(block_2_LayerNorm2, weights[40],stride=1,padding="SAME")
     block_2_conv1x1_3_output_b = tf.add(block_2_conv1x1_3_output,weights[41])
-    print(block_2_conv1x1_3_output_b.shape,'block_2_conv1x1_3_output_b')
     del block_2_LayerNorm2
     del block_2_conv1x1_3_output
 
 
 
-    i*=2
-    block_3_conv1x1_1 = tf.nn.conv1d( block_2_conv1x1_3_output_b , weights[42],stride=1,padding="SAME",dilations= i).numpy()
-    print(block_3_conv1x1_1.shape,'block_3_conv1x1_1')
+    #i*=2
+    block_3_conv1x1_1 = tf.nn.conv1d( block_2_conv1x1_3_output_b , weights[42],stride=1,padding="SAME",dilations= i)
     block_3_conv1x1_1_b = tf.add(block_3_conv1x1_1,weights[43]) #TODO add the rest of the biases to the model explicitly
-    print(block_3_conv1x1_1_b.shape,'block_3_conv1x1_1_b')
     del block_3_conv1x1_1
 
-    block_3_prelu1 = block_3_conv1x1_1_b #parametric_relu(, weights[44])
-    print(block_3_prelu1.shape,'block_3_prelu1')
+    block_3_prelu1 = parametric_relu(block_3_conv1x1_1_b, weights[44])
     del block_3_conv1x1_1_b
 
-    block_3_LayerNorm1 = tf.nn.dropout(block_3_prelu1,rate= .1 ).numpy()
-    print(block_3_LayerNorm1.shape,'block_3_LayerNorm1')
+    block_3_LayerNorm1 = tf.nn.dropout(block_3_prelu1,rate= .1 )
     del block_3_prelu1
 
-    block_3_deconv1 = tf.nn.conv1d(block_3_LayerNorm1, weights[45], stride=1, padding="SAME").numpy()
-    print(block_3_deconv1.shape,'block_3_deconv1')
+    block_3_deconv1 = tf.nn.conv1d(block_3_LayerNorm1, weights[45], stride=1, padding="SAME")
     del block_3_LayerNorm1
     block_3_deconv1_b = tf.add(block_3_deconv1,weights[46])
-    print(block_3_deconv1_b.shape,'block_3_deconv1_b')
     del block_3_deconv1
 
-    block_3_prelu2 = block_3_deconv1_b #parametric_relu(, weights[47])
-    print(block_3_prelu2.shape,'block_3_prelu2')
+    block_3_prelu2 = parametric_relu(block_3_deconv1_b, weights[47])
     del block_3_deconv1_b
 
-    block_3_LayerNorm2 = tf.nn.dropout(block_3_prelu2,rate= .1 ).numpy()
-    print(block_3_LayerNorm2.shape,'block_3_LayerNorm2')
+    block_3_LayerNorm2 = tf.nn.dropout(block_3_prelu2,rate= .1 )
     del block_3_prelu2
 
-    block_3_conv1x1_2_skip = tf.nn.conv1d(block_3_LayerNorm2,weights[48],stride=1,padding="SAME") .numpy()
-    print(block_3_conv1x1_2_skip.shape,'block_3_conv1x1_2_skip')
+    block_3_conv1x1_2_skip = tf.nn.conv1d(block_3_LayerNorm2,weights[48],stride=1,padding="SAME") #to skip connection
     block_3_conv1x1_2_skip_b = tf.add(block_3_conv1x1_2_skip,weights[49])
-    print(block_3_conv1x1_2_skip_b.shape,'block_3_conv1x1_2_skip_b')
     running_sum += block_3_conv1x1_2_skip_b
     del block_3_conv1x1_2_skip
     del block_3_conv1x1_2_skip_b
 
-    block_3_conv1x1_3_output = tf.nn.conv1d(block_3_LayerNorm2, weights[50],stride=1,padding="SAME").numpy()
-    print(block_3_conv1x1_3_output.shape,'block_3_conv1x1_3_output')
+    block_3_conv1x1_3_output = tf.nn.conv1d(block_3_LayerNorm2, weights[50],stride=1,padding="SAME")
     block_3_conv1x1_3_output_b = tf.add(block_3_conv1x1_3_output,weights[51])
-    print(block_3_conv1x1_3_output_b.shape,'block_3_conv1x1_3_output_b')
     del block_3_LayerNorm2
     del block_3_conv1x1_3_output
 
 
 
-    i*=2
-    block_4_conv1x1_1 = tf.nn.conv1d( block_3_conv1x1_3_output_b , weights[52],stride=1,padding="SAME",dilations= i).numpy()
-    print(block_4_conv1x1_1.shape,'block_4_conv1x1_1')
+    #i*=2
+    block_4_conv1x1_1 = tf.nn.conv1d( block_3_conv1x1_3_output_b , weights[52],stride=1,padding="SAME",dilations= i)
     block_4_conv1x1_1_b = tf.add(block_4_conv1x1_1,weights[53]) #TODO add the rest of the biases to the model explicitly
-    print(block_4_conv1x1_1_b.shape,'block_4_conv1x1_1_b')
     del block_4_conv1x1_1
 
-    block_4_prelu1 = block_4_conv1x1_1_b #parametric_relu(, weights[54])
-    print(block_4_prelu1.shape,'block_4_prelu1')
+    block_4_prelu1 = parametric_relu(block_4_conv1x1_1_b, weights[54])
     del block_4_conv1x1_1_b
 
-    block_4_LayerNorm1 = tf.nn.dropout(block_4_prelu1,rate= .1 ).numpy()
-    print(block_4_LayerNorm1.shape,'block_4_LayerNorm1')
+    block_4_LayerNorm1 = tf.nn.dropout(block_4_prelu1,rate= .1 )
     del block_4_prelu1
 
-    block_4_deconv1 = tf.nn.conv1d(block_4_LayerNorm1, weights[55], stride=1, padding="SAME").numpy()
-    print(block_4_deconv1.shape,'block_4_deconv1')
+    block_4_deconv1 = tf.nn.conv1d(block_4_LayerNorm1, weights[55], stride=1, padding="SAME")
     del block_4_LayerNorm1
     block_4_deconv1_b = tf.add(block_4_deconv1,weights[56])
-    print(block_4_deconv1_b.shape,'block_4_deconv1_b')
     del block_4_deconv1
 
-    block_4_prelu2 = block_4_deconv1_b #parametric_relu(, weights[57])
-    print(block_4_prelu2.shape,'block_4_prelu2')
+    block_4_prelu2 = parametric_relu(block_4_deconv1_b, weights[57])
     del block_4_deconv1_b
 
-    block_4_LayerNorm2 = tf.nn.dropout(block_4_prelu2,rate= .1 ).numpy()
-    print(block_4_LayerNorm2.shape,'block_4_LayerNorm2')
+    block_4_LayerNorm2 = tf.nn.dropout(block_4_prelu2,rate= .1 )
     del block_4_prelu2
 
-    block_4_conv1x1_2_skip = tf.nn.conv1d(block_4_LayerNorm2,weights[58],stride=1,padding="SAME") .numpy()
-    print(block_4_conv1x1_2_skip.shape,'block_4_conv1x1_2_skip')
+    block_4_conv1x1_2_skip = tf.nn.conv1d(block_4_LayerNorm2,weights[58],stride=1,padding="SAME") #to skip connection
     block_4_conv1x1_2_skip_b = tf.add(block_4_conv1x1_2_skip,weights[59])
-    print(block_4_conv1x1_2_skip_b.shape,'block_4_conv1x1_2_skip_b')
     running_sum += block_4_conv1x1_2_skip_b
     del block_4_conv1x1_2_skip
     del block_4_conv1x1_2_skip_b
 
-    block_4_conv1x1_3_output = tf.nn.conv1d(block_4_LayerNorm2, weights[60],stride=1,padding="SAME").numpy()
-    print(block_4_conv1x1_3_output.shape,'block_4_conv1x1_3_output')
+    block_4_conv1x1_3_output = tf.nn.conv1d(block_4_LayerNorm2, weights[60],stride=1,padding="SAME")
     block_4_conv1x1_3_output_b = tf.add(block_4_conv1x1_3_output,weights[61])
-    print(block_4_conv1x1_3_output_b.shape,'block_4_conv1x1_3_output_b')
     del block_4_LayerNorm2
     del block_4_conv1x1_3_output
 
 
 
-    i*=2
-    block_5_conv1x1_1 = tf.nn.conv1d( block_4_conv1x1_3_output_b , weights[62],stride=1,padding="SAME",dilations= i).numpy()
-    print(block_5_conv1x1_1.shape,'block_5_conv1x1_1')
+    #i*=2
+    block_5_conv1x1_1 = tf.nn.conv1d( block_4_conv1x1_3_output_b , weights[62],stride=1,padding="SAME",dilations= i)
     block_5_conv1x1_1_b = tf.add(block_5_conv1x1_1,weights[63]) #TODO add the rest of the biases to the model explicitly
-    print(block_5_conv1x1_1_b.shape,'block_5_conv1x1_1_b')
     del block_5_conv1x1_1
 
-    block_5_prelu1 = block_5_conv1x1_1_b #parametric_relu(, weights[64])
-    print(block_5_prelu1.shape,'block_5_prelu1')
+    block_5_prelu1 = parametric_relu(block_5_conv1x1_1_b, weights[64])
     del block_5_conv1x1_1_b
 
-    block_5_LayerNorm1 = tf.nn.dropout(block_5_prelu1,rate= .1 ).numpy()
-    print(block_5_LayerNorm1.shape,'block_5_LayerNorm1')
+    block_5_LayerNorm1 = tf.nn.dropout(block_5_prelu1,rate= .1 )
     del block_5_prelu1
 
-    block_5_deconv1 = tf.nn.conv1d(block_5_LayerNorm1, weights[65], stride=1, padding="SAME").numpy()
-    print(block_5_deconv1.shape,'block_5_deconv1')
+    block_5_deconv1 = tf.nn.conv1d(block_5_LayerNorm1, weights[65], stride=1, padding="SAME")
     del block_5_LayerNorm1
     block_5_deconv1_b = tf.add(block_5_deconv1,weights[66])
-    print(block_5_deconv1_b.shape,'block_5_deconv1_b')
     del block_5_deconv1
 
-    block_5_prelu2 = block_5_deconv1_b #parametric_relu(, weights[67])
-    print(block_5_prelu2.shape,'block_5_prelu2')
+    block_5_prelu2 = parametric_relu(block_5_deconv1_b, weights[67])
     del block_5_deconv1_b
 
-    block_5_LayerNorm2 = tf.nn.dropout(block_5_prelu2,rate= .1 ).numpy()
-    print(block_5_LayerNorm2.shape,'block_5_LayerNorm2')
+    block_5_LayerNorm2 = tf.nn.dropout(block_5_prelu2,rate= .1 )
     del block_5_prelu2
 
-    block_5_conv1x1_2_skip = tf.nn.conv1d(block_5_LayerNorm2,weights[68],stride=1,padding="SAME") .numpy()
-    print(block_5_conv1x1_2_skip.shape,'block_5_conv1x1_2_skip')
+    block_5_conv1x1_2_skip = tf.nn.conv1d(block_5_LayerNorm2,weights[68],stride=1,padding="SAME") #to skip connection
     block_5_conv1x1_2_skip_b = tf.add(block_5_conv1x1_2_skip,weights[69])
-    print(block_5_conv1x1_2_skip_b.shape,'block_5_conv1x1_2_skip_b')
     running_sum += block_5_conv1x1_2_skip_b
     del block_5_conv1x1_2_skip
     del block_5_conv1x1_2_skip_b
 
-    block_5_conv1x1_3_output = tf.nn.conv1d(block_5_LayerNorm2, weights[70],stride=1,padding="SAME").numpy()
-    print(block_5_conv1x1_3_output.shape,'block_5_conv1x1_3_output')
+    block_5_conv1x1_3_output = tf.nn.conv1d(block_5_LayerNorm2, weights[70],stride=1,padding="SAME")
     block_5_conv1x1_3_output_b = tf.add(block_5_conv1x1_3_output,weights[71])
-    print(block_5_conv1x1_3_output_b.shape,'block_5_conv1x1_3_output_b')
     del block_5_LayerNorm2
     del block_5_conv1x1_3_output
 
 
 
-    i*=2
-    block_6_conv1x1_1 = tf.nn.conv1d( block_5_conv1x1_3_output_b , weights[72],stride=1,padding="SAME",dilations= i).numpy()
-    print(block_6_conv1x1_1.shape,'block_6_conv1x1_1')
+    #i*=2
+    block_6_conv1x1_1 = tf.nn.conv1d( block_5_conv1x1_3_output_b , weights[72],stride=1,padding="SAME",dilations= i)
     block_6_conv1x1_1_b = tf.add(block_6_conv1x1_1,weights[73]) #TODO add the rest of the biases to the model explicitly
-    print(block_6_conv1x1_1_b.shape,'block_6_conv1x1_1_b')
     del block_6_conv1x1_1
 
-    block_6_prelu1 = block_6_conv1x1_1_b #parametric_relu(, weights[74])
-    print(block_6_prelu1.shape,'block_6_prelu1')
+    block_6_prelu1 = parametric_relu(block_6_conv1x1_1_b, weights[74])
     del block_6_conv1x1_1_b
 
-    block_6_LayerNorm1 = tf.nn.dropout(block_6_prelu1,rate= .1 ).numpy()
-    print(block_6_LayerNorm1.shape,'block_6_LayerNorm1')
+    block_6_LayerNorm1 = tf.nn.dropout(block_6_prelu1,rate= .1 )
     del block_6_prelu1
 
-    block_6_deconv1 = tf.nn.conv1d(block_6_LayerNorm1, weights[75], stride=1, padding="SAME").numpy()
-    print(block_6_deconv1.shape,'block_6_deconv1')
+    block_6_deconv1 = tf.nn.conv1d(block_6_LayerNorm1, weights[75], stride=1, padding="SAME")
     del block_6_LayerNorm1
     block_6_deconv1_b = tf.add(block_6_deconv1,weights[76])
-    print(block_6_deconv1_b.shape,'block_6_deconv1_b')
     del block_6_deconv1
 
-    block_6_prelu2 = block_6_deconv1_b #parametric_relu(, weights[77])
-    print(block_6_prelu2.shape,'block_6_prelu2')
+    block_6_prelu2 = parametric_relu(block_6_deconv1_b, weights[77])
     del block_6_deconv1_b
 
-    block_6_LayerNorm2 = tf.nn.dropout(block_6_prelu2,rate= .1 ).numpy()
-    print(block_6_LayerNorm2.shape,'block_6_LayerNorm2')
+    block_6_LayerNorm2 = tf.nn.dropout(block_6_prelu2,rate= .1 )
     del block_6_prelu2
 
-    block_6_conv1x1_2_skip = tf.nn.conv1d(block_6_LayerNorm2,weights[78],stride=1,padding="SAME") .numpy()
-    print(block_6_conv1x1_2_skip.shape,'block_6_conv1x1_2_skip')
+    block_6_conv1x1_2_skip = tf.nn.conv1d(block_6_LayerNorm2,weights[78],stride=1,padding="SAME") #to skip connection
     block_6_conv1x1_2_skip_b = tf.add(block_6_conv1x1_2_skip,weights[79])
-    print(block_6_conv1x1_2_skip_b.shape,'block_6_conv1x1_2_skip_b')
     running_sum += block_6_conv1x1_2_skip_b
     del block_6_conv1x1_2_skip
     del block_6_conv1x1_2_skip_b
 
-    block_6_conv1x1_3_output = tf.nn.conv1d(block_6_LayerNorm2, weights[80],stride=1,padding="SAME").numpy()
-    print(block_6_conv1x1_3_output.shape,'block_6_conv1x1_3_output')
+    block_6_conv1x1_3_output = tf.nn.conv1d(block_6_LayerNorm2, weights[80],stride=1,padding="SAME")
     block_6_conv1x1_3_output_b = tf.add(block_6_conv1x1_3_output,weights[81])
-    print(block_6_conv1x1_3_output_b.shape,'block_6_conv1x1_3_output_b')
     del block_6_LayerNorm2
     del block_6_conv1x1_3_output
 
 
 
-    i=1
-    block_7_conv1x1_1 = tf.nn.conv1d( block_6_conv1x1_3_output_b , weights[82],stride=1,padding="SAME",dilations= i).numpy()
-    print(block_7_conv1x1_1.shape,'block_7_conv1x1_1')
+    #i=1
+    block_7_conv1x1_1 = tf.nn.conv1d( block_6_conv1x1_3_output_b , weights[82],stride=1,padding="SAME",dilations= i)
     block_7_conv1x1_1_b = tf.add(block_7_conv1x1_1,weights[83]) #TODO add the rest of the biases to the model explicitly
-    print(block_7_conv1x1_1_b.shape,'block_7_conv1x1_1_b')
     del block_7_conv1x1_1
 
-    block_7_prelu1 = block_7_conv1x1_1_b #parametric_relu(, weights[84])
-    print(block_7_prelu1.shape,'block_7_prelu1')
+    block_7_prelu1 = parametric_relu(block_7_conv1x1_1_b, weights[84])
     del block_7_conv1x1_1_b
 
-    block_7_LayerNorm1 = tf.nn.dropout(block_7_prelu1,rate= .1 ).numpy()
-    print(block_7_LayerNorm1.shape,'block_7_LayerNorm1')
+    block_7_LayerNorm1 = tf.nn.dropout(block_7_prelu1,rate= .1 )
     del block_7_prelu1
 
-    block_7_deconv1 = tf.nn.conv1d(block_7_LayerNorm1, weights[85], stride=1, padding="SAME").numpy()
-    print(block_7_deconv1.shape,'block_7_deconv1')
+    block_7_deconv1 = tf.nn.conv1d(block_7_LayerNorm1, weights[85], stride=1, padding="SAME")
     del block_7_LayerNorm1
     block_7_deconv1_b = tf.add(block_7_deconv1,weights[86])
-    print(block_7_deconv1_b.shape,'block_7_deconv1_b')
     del block_7_deconv1
 
-    block_7_prelu2 = block_7_deconv1_b #parametric_relu(, weights[87])
-    print(block_7_prelu2.shape,'block_7_prelu2')
+    block_7_prelu2 = parametric_relu(block_7_deconv1_b, weights[87])
     del block_7_deconv1_b
 
-    block_7_LayerNorm2 = tf.nn.dropout(block_7_prelu2,rate= .1 ).numpy()
-    print(block_7_LayerNorm2.shape,'block_7_LayerNorm2')
+    block_7_LayerNorm2 = tf.nn.dropout(block_7_prelu2,rate= .1 )
     del block_7_prelu2
 
-    block_7_conv1x1_2_skip = tf.nn.conv1d(block_7_LayerNorm2,weights[88],stride=1,padding="SAME") .numpy()
-    print(block_7_conv1x1_2_skip.shape,'block_7_conv1x1_2_skip')
+    block_7_conv1x1_2_skip = tf.nn.conv1d(block_7_LayerNorm2,weights[88],stride=1,padding="SAME") #to skip connection
     block_7_conv1x1_2_skip_b = tf.add(block_7_conv1x1_2_skip,weights[89])
-    print(block_7_conv1x1_2_skip_b.shape,'block_7_conv1x1_2_skip_b')
     running_sum += block_7_conv1x1_2_skip_b
     del block_7_conv1x1_2_skip
     del block_7_conv1x1_2_skip_b
 
-    block_7_conv1x1_3_output = tf.nn.conv1d(block_7_LayerNorm2, weights[90],stride=1,padding="SAME").numpy()
-    print(block_7_conv1x1_3_output.shape,'block_7_conv1x1_3_output')
+    block_7_conv1x1_3_output = tf.nn.conv1d(block_7_LayerNorm2, weights[90],stride=1,padding="SAME")
     block_7_conv1x1_3_output_b = tf.add(block_7_conv1x1_3_output,weights[91])
-    print(block_7_conv1x1_3_output_b.shape,'block_7_conv1x1_3_output_b')
     del block_7_LayerNorm2
     del block_7_conv1x1_3_output
 
 
 
-    i*=2
-    block_8_conv1x1_1 = tf.nn.conv1d( block_7_conv1x1_3_output_b , weights[92],stride=1,padding="SAME",dilations= i).numpy()
-    print(block_8_conv1x1_1.shape,'block_8_conv1x1_1')
+    #i*=2
+    block_8_conv1x1_1 = tf.nn.conv1d( block_7_conv1x1_3_output_b , weights[92],stride=1,padding="SAME",dilations= i)
     block_8_conv1x1_1_b = tf.add(block_8_conv1x1_1,weights[93]) #TODO add the rest of the biases to the model explicitly
-    print(block_8_conv1x1_1_b.shape,'block_8_conv1x1_1_b')
     del block_8_conv1x1_1
 
-    block_8_prelu1 = block_8_conv1x1_1_b #parametric_relu(, weights[94])
-    print(block_8_prelu1.shape,'block_8_prelu1')
+    block_8_prelu1 = parametric_relu(block_8_conv1x1_1_b, weights[94])
     del block_8_conv1x1_1_b
 
-    block_8_LayerNorm1 = tf.nn.dropout(block_8_prelu1,rate= .1 ).numpy()
-    print(block_8_LayerNorm1.shape,'block_8_LayerNorm1')
+    block_8_LayerNorm1 = tf.nn.dropout(block_8_prelu1,rate= .1 )
     del block_8_prelu1
 
-    block_8_deconv1 = tf.nn.conv1d(block_8_LayerNorm1, weights[95], stride=1, padding="SAME").numpy()
-    print(block_8_deconv1.shape,'block_8_deconv1')
+    block_8_deconv1 = tf.nn.conv1d(block_8_LayerNorm1, weights[95], stride=1, padding="SAME")
     del block_8_LayerNorm1
     block_8_deconv1_b = tf.add(block_8_deconv1,weights[96])
-    print(block_8_deconv1_b.shape,'block_8_deconv1_b')
     del block_8_deconv1
 
-    block_8_prelu2 = block_8_deconv1_b #parametric_relu(, weights[97])
-    print(block_8_prelu2.shape,'block_8_prelu2')
+    block_8_prelu2 = parametric_relu(block_8_deconv1_b, weights[97])
     del block_8_deconv1_b
 
-    block_8_LayerNorm2 = tf.nn.dropout(block_8_prelu2,rate= .1 ).numpy()
-    print(block_8_LayerNorm2.shape,'block_8_LayerNorm2')
+    block_8_LayerNorm2 = tf.nn.dropout(block_8_prelu2,rate= .1 )
     del block_8_prelu2
 
-    block_8_conv1x1_2_skip = tf.nn.conv1d(block_8_LayerNorm2,weights[98],stride=1,padding="SAME") .numpy()
-    print(block_8_conv1x1_2_skip.shape,'block_8_conv1x1_2_skip')
+    block_8_conv1x1_2_skip = tf.nn.conv1d(block_8_LayerNorm2,weights[98],stride=1,padding="SAME") #to skip connection
     block_8_conv1x1_2_skip_b = tf.add(block_8_conv1x1_2_skip,weights[99])
-    print(block_8_conv1x1_2_skip_b.shape,'block_8_conv1x1_2_skip_b')
     running_sum += block_8_conv1x1_2_skip_b
     del block_8_conv1x1_2_skip
     del block_8_conv1x1_2_skip_b
 
-    block_8_conv1x1_3_output = tf.nn.conv1d(block_8_LayerNorm2, weights[100],stride=1,padding="SAME").numpy()
-    print(block_8_conv1x1_3_output.shape,'block_8_conv1x1_3_output')
+    block_8_conv1x1_3_output = tf.nn.conv1d(block_8_LayerNorm2, weights[100],stride=1,padding="SAME")
     block_8_conv1x1_3_output_b = tf.add(block_8_conv1x1_3_output,weights[101])
-    print(block_8_conv1x1_3_output_b.shape,'block_8_conv1x1_3_output_b')
     del block_8_LayerNorm2
     del block_8_conv1x1_3_output
 
 
 #
-    i*=2
-    block_9_conv1x1_1 = tf.nn.conv1d( block_8_conv1x1_3_output_b , weights[102],stride=1,padding="SAME",dilations= i).numpy()
-    print(block_9_conv1x1_1.shape,'block_9_conv1x1_1')
+    #i*=2
+    block_9_conv1x1_1 = tf.nn.conv1d( block_8_conv1x1_3_output_b , weights[102],stride=1,padding="SAME",dilations= i)
     block_9_conv1x1_1_b = tf.add(block_9_conv1x1_1,weights[103]) #TODO add the rest of the biases to the model explicitly
-    print(block_9_conv1x1_1_b.shape,'block_9_conv1x1_1_b')
     del block_9_conv1x1_1
 
-    block_9_prelu1 = block_9_conv1x1_1_b #parametric_relu(, weights[104])
-    print(block_9_prelu1.shape,'block_9_prelu1')
+    block_9_prelu1 = parametric_relu(block_9_conv1x1_1_b, weights[104])
     del block_9_conv1x1_1_b
 
-    block_9_LayerNorm1 = tf.nn.dropout(block_9_prelu1,rate= .1 ).numpy()
-    print(block_9_LayerNorm1.shape,'block_9_LayerNorm1')
+    block_9_LayerNorm1 = tf.nn.dropout(block_9_prelu1,rate= .1 )
     del block_9_prelu1
 
-    block_9_deconv1 = tf.nn.conv1d(block_9_LayerNorm1, weights[105], stride=1, padding="SAME").numpy()
-    print(block_9_deconv1.shape,'block_9_deconv1')
+    block_9_deconv1 = tf.nn.conv1d(block_9_LayerNorm1, weights[105], stride=1, padding="SAME")
     del block_9_LayerNorm1
     block_9_deconv1_b = tf.add(block_9_deconv1,weights[106])
-    print(block_9_deconv1_b.shape,'block_9_deconv1_b')
     del block_9_deconv1
 
-    block_9_prelu2 = block_9_deconv1_b #parametric_relu(, weights[107])
-    print(block_9_prelu2.shape,'block_9_prelu2')
+    block_9_prelu2 = parametric_relu(block_9_deconv1_b, weights[107])
     del block_9_deconv1_b
 
-    block_9_LayerNorm2 = tf.nn.dropout(block_9_prelu2,rate= .1 ).numpy()
-    print(block_9_LayerNorm2.shape,'block_9_LayerNorm2')
+    block_9_LayerNorm2 = tf.nn.dropout(block_9_prelu2,rate= .1 )
     del block_9_prelu2
 
-    block_9_conv1x1_2_skip = tf.nn.conv1d(block_9_LayerNorm2,weights[108],stride=1,padding="SAME") .numpy()
-    print(block_9_conv1x1_2_skip.shape,'block_9_conv1x1_2_skip')
+    block_9_conv1x1_2_skip = tf.nn.conv1d(block_9_LayerNorm2,weights[108],stride=1,padding="SAME") #to skip connection
     block_9_conv1x1_2_skip_b = tf.add(block_9_conv1x1_2_skip,weights[109])
-    print(block_9_conv1x1_2_skip_b.shape,'block_9_conv1x1_2_skip_b')
     running_sum += block_9_conv1x1_2_skip_b
     del block_9_conv1x1_2_skip
     del block_9_conv1x1_2_skip_b
 
-    block_9_conv1x1_3_output = tf.nn.conv1d(block_9_LayerNorm2, weights[110],stride=1,padding="SAME").numpy()
-    print(block_9_conv1x1_3_output.shape,'block_9_conv1x1_3_output')
+    block_9_conv1x1_3_output = tf.nn.conv1d(block_9_LayerNorm2, weights[110],stride=1,padding="SAME")
     block_9_conv1x1_3_output_b = tf.add(block_9_conv1x1_3_output,weights[111])
-    print(block_9_conv1x1_3_output_b.shape,'block_9_conv1x1_3_output_b')
     del block_9_LayerNorm2
     del block_9_conv1x1_3_output
 
 
 
-    i*=2
-    block_10_conv1x1_1 = tf.nn.conv1d( block_9_conv1x1_3_output_b , weights[112],stride=1,padding="SAME",dilations= i).numpy()
-    print(block_10_conv1x1_1.shape,'block_10_conv1x1_1')
+    #i*=2
+    block_10_conv1x1_1 = tf.nn.conv1d( block_9_conv1x1_3_output_b , weights[112],stride=1,padding="SAME",dilations= i)
     block_10_conv1x1_1_b = tf.add(block_10_conv1x1_1,weights[113]) #TODO add the rest of the biases to the model explicitly
-    print(block_10_conv1x1_1_b.shape,'block_10_conv1x1_1_b')
     del block_10_conv1x1_1
 
-    block_10_prelu1 = block_10_conv1x1_1_b #parametric_relu(, weights[114])
-    print(block_10_prelu1.shape,'block_10_prelu1')
+    block_10_prelu1 = parametric_relu(block_10_conv1x1_1_b, weights[114])
     del block_10_conv1x1_1_b
 
-    block_10_LayerNorm1 = tf.nn.dropout(block_10_prelu1,rate= .1 ).numpy()
-    print(block_10_LayerNorm1.shape,'block_10_LayerNorm1')
+    block_10_LayerNorm1 = tf.nn.dropout(block_10_prelu1,rate= .1 )
     del block_10_prelu1
 
-    block_10_deconv1 = tf.nn.conv1d(block_10_LayerNorm1, weights[115], stride=1, padding="SAME").numpy()
-    print(block_10_deconv1.shape,'block_10_deconv1')
+    block_10_deconv1 = tf.nn.conv1d(block_10_LayerNorm1, weights[115], stride=1, padding="SAME")
     del block_10_LayerNorm1
     block_10_deconv1_b = tf.add(block_10_deconv1,weights[116])
-    print(block_10_deconv1_b.shape,'block_10_deconv1_b')
     del block_10_deconv1
 
-    block_10_prelu2 = block_10_deconv1_b #parametric_relu(, weights[117])
-    print(block_10_prelu2.shape,'block_10_prelu2')
+    block_10_prelu2 = parametric_relu(block_10_deconv1_b, weights[117])
     del block_10_deconv1_b
 
-    block_10_LayerNorm2 = tf.nn.dropout(block_10_prelu2,rate= .1 ).numpy()
-    print(block_10_LayerNorm2.shape,'block_10_LayerNorm2')
+    block_10_LayerNorm2 = tf.nn.dropout(block_10_prelu2,rate= .1 )
     del block_10_prelu2
 
-    block_10_conv1x1_2_skip = tf.nn.conv1d(block_10_LayerNorm2,weights[118],stride=1,padding="SAME") .numpy()
-    print(block_10_conv1x1_2_skip.shape,'block_10_conv1x1_2_skip')
+    block_10_conv1x1_2_skip = tf.nn.conv1d(block_10_LayerNorm2,weights[118],stride=1,padding="SAME") #to skip connection
     block_10_conv1x1_2_skip_b = tf.add(block_10_conv1x1_2_skip,weights[119])
-    print(block_10_conv1x1_2_skip_b.shape,'block_10_conv1x1_2_skip_b')
     running_sum += block_10_conv1x1_2_skip_b
     del block_10_conv1x1_2_skip
     del block_10_conv1x1_2_skip_b
 
-    block_10_conv1x1_3_output = tf.nn.conv1d(block_10_LayerNorm2, weights[120],stride=1,padding="SAME").numpy()
-    print(block_10_conv1x1_3_output.shape,'block_10_conv1x1_3_output')
+    block_10_conv1x1_3_output = tf.nn.conv1d(block_10_LayerNorm2, weights[120],stride=1,padding="SAME")
     block_10_conv1x1_3_output_b = tf.add(block_10_conv1x1_3_output,weights[121])
-    print(block_10_conv1x1_3_output_b.shape,'block_10_conv1x1_3_output_b')
     del block_10_LayerNorm2
     del block_10_conv1x1_3_output
 
 
 
-    i*=2
-    block_11_conv1x1_1 = tf.nn.conv1d( block_10_conv1x1_3_output_b , weights[122],stride=1,padding="SAME",dilations= i).numpy()
-    print(block_11_conv1x1_1.shape,'block_11_conv1x1_1')
+    #i*=2
+    block_11_conv1x1_1 = tf.nn.conv1d( block_10_conv1x1_3_output_b , weights[122],stride=1,padding="SAME",dilations= i)
     block_11_conv1x1_1_b = tf.add(block_11_conv1x1_1,weights[123]) #TODO add the rest of the biases to the model explicitly
-    print(block_11_conv1x1_1_b.shape,'block_11_conv1x1_1_b')
     del block_11_conv1x1_1
 
-    block_11_prelu1 = block_11_conv1x1_1_b #parametric_relu(, weights[124])
-    print(block_11_prelu1.shape,'block_11_prelu1')
+    block_11_prelu1 = parametric_relu(block_11_conv1x1_1_b, weights[124])
     del block_11_conv1x1_1_b
 
-    block_11_LayerNorm1 = tf.nn.dropout(block_11_prelu1,rate= .1 ).numpy()
-    print(block_11_LayerNorm1.shape,'block_11_LayerNorm1')
+    block_11_LayerNorm1 = tf.nn.dropout(block_11_prelu1,rate= .1 )
     del block_11_prelu1
 
-    block_11_deconv1 = tf.nn.conv1d(block_11_LayerNorm1, weights[125], stride=1, padding="SAME").numpy()
-    print(block_11_deconv1.shape,'block_11_deconv1')
+    block_11_deconv1 = tf.nn.conv1d(block_11_LayerNorm1, weights[125], stride=1, padding="SAME")
     del block_11_LayerNorm1
     block_11_deconv1_b = tf.add(block_11_deconv1,weights[126])
-    print(block_11_deconv1_b.shape,'block_11_deconv1_b')
     del block_11_deconv1
 
-    block_11_prelu2 = block_11_deconv1_b #parametric_relu(, weights[127])
-    print(block_11_prelu2.shape,'block_11_prelu2')
+    block_11_prelu2 = parametric_relu(block_11_deconv1_b, weights[127])
     del block_11_deconv1_b
 
-    block_11_LayerNorm2 = tf.nn.dropout(block_11_prelu2,rate= .1 ).numpy()
-    print(block_11_LayerNorm2.shape,'block_11_LayerNorm2')
+    block_11_LayerNorm2 = tf.nn.dropout(block_11_prelu2,rate= .1 )
     del block_11_prelu2
 
-    block_11_conv1x1_2_skip = tf.nn.conv1d(block_11_LayerNorm2,weights[128],stride=1,padding="SAME") .numpy()
-    print(block_11_conv1x1_2_skip.shape,'block_11_conv1x1_2_skip')
+    block_11_conv1x1_2_skip = tf.nn.conv1d(block_11_LayerNorm2,weights[128],stride=1,padding="SAME") #to skip connection
     block_11_conv1x1_2_skip_b = tf.add(block_11_conv1x1_2_skip,weights[129])
-    print(block_11_conv1x1_2_skip_b.shape,'block_11_conv1x1_2_skip_b')
     running_sum += block_11_conv1x1_2_skip_b
     del block_11_conv1x1_2_skip
     del block_11_conv1x1_2_skip_b
 
-    block_11_conv1x1_3_output = tf.nn.conv1d(block_11_LayerNorm2, weights[130],stride=1,padding="SAME").numpy()
-    print(block_11_conv1x1_3_output.shape,'block_11_conv1x1_3_output')
+    block_11_conv1x1_3_output = tf.nn.conv1d(block_11_LayerNorm2, weights[130],stride=1,padding="SAME")
     block_11_conv1x1_3_output_b = tf.add(block_11_conv1x1_3_output,weights[131])
-    print(block_11_conv1x1_3_output_b.shape,'block_11_conv1x1_3_output_b')
     del block_11_LayerNorm2
     del block_11_conv1x1_3_output
 
 
 
-    i*=2
-    block_12_conv1x1_1 = tf.nn.conv1d( block_11_conv1x1_3_output_b , weights[132],stride=1,padding="SAME",dilations= i).numpy()
-    print(block_12_conv1x1_1.shape,'block_12_conv1x1_1')
+    #i*=2
+    block_12_conv1x1_1 = tf.nn.conv1d( block_11_conv1x1_3_output_b , weights[132],stride=1,padding="SAME",dilations= i)
     block_12_conv1x1_1_b = tf.add(block_12_conv1x1_1,weights[133]) #TODO add the rest of the biases to the model explicitly
-    print(block_12_conv1x1_1_b.shape,'block_12_conv1x1_1_b')
     del block_12_conv1x1_1
 
-    block_12_prelu1 = block_12_conv1x1_1_b #parametric_relu(, weights[134])
-    print(block_12_prelu1.shape,'block_12_prelu1')
+    block_12_prelu1 = parametric_relu(block_12_conv1x1_1_b, weights[134])
     del block_12_conv1x1_1_b
 
-    block_12_LayerNorm1 = tf.nn.dropout(block_12_prelu1,rate= .1 ).numpy()
-    print(block_12_LayerNorm1.shape,'block_12_LayerNorm1')
+    block_12_LayerNorm1 = tf.nn.dropout(block_12_prelu1,rate= .1 )
     del block_12_prelu1
 
-    block_12_deconv1 = tf.nn.conv1d(block_12_LayerNorm1, weights[135], stride=1, padding="SAME").numpy()
-    print(block_12_deconv1.shape,'block_12_deconv1')
+    block_12_deconv1 = tf.nn.conv1d(block_12_LayerNorm1, weights[135], stride=1, padding="SAME")
     del block_12_LayerNorm1
     block_12_deconv1_b = tf.add(block_12_deconv1,weights[136])
-    print(block_12_deconv1_b.shape,'block_12_deconv1_b')
     del block_12_deconv1
 
-    block_12_prelu2 = block_12_deconv1_b #parametric_relu(, weights[137])
-    print(block_12_prelu2.shape,'block_12_prelu2')
+    block_12_prelu2 = parametric_relu(block_12_deconv1_b, weights[137])
     del block_12_deconv1_b
 
-    block_12_LayerNorm2 = tf.nn.dropout(block_12_prelu2,rate= .1 ).numpy()
-    print(block_12_LayerNorm2.shape,'block_12_LayerNorm2')
+    block_12_LayerNorm2 = tf.nn.dropout(block_12_prelu2,rate= .1 )
     del block_12_prelu2
 
-    block_12_conv1x1_2_skip = tf.nn.conv1d(block_12_LayerNorm2,weights[138],stride=1,padding="SAME") .numpy()
-    print(block_12_conv1x1_2_skip.shape,'block_12_conv1x1_2_skip')
+    block_12_conv1x1_2_skip = tf.nn.conv1d(block_12_LayerNorm2,weights[138],stride=1,padding="SAME") #to skip connection
     block_12_conv1x1_2_skip_b = tf.add(block_12_conv1x1_2_skip,weights[139])
-    print(block_12_conv1x1_2_skip_b.shape,'block_12_conv1x1_2_skip_b')
     running_sum += block_12_conv1x1_2_skip_b
     del block_12_conv1x1_2_skip
     del block_12_conv1x1_2_skip_b
 
-    block_12_conv1x1_3_output = tf.nn.conv1d(block_12_LayerNorm2, weights[140],stride=1,padding="SAME").numpy()
-    print(block_12_conv1x1_3_output.shape,'block_12_conv1x1_3_output')
+    block_12_conv1x1_3_output = tf.nn.conv1d(block_12_LayerNorm2, weights[140],stride=1,padding="SAME")
     block_12_conv1x1_3_output_b = tf.add(block_12_conv1x1_3_output,weights[141])
-    print(block_12_conv1x1_3_output_b.shape,'block_12_conv1x1_3_output_b')
     del block_12_LayerNorm2
     del block_12_conv1x1_3_output
 
 
 
-    i*=2
-    block_13_conv1x1_1 = tf.nn.conv1d( block_12_conv1x1_3_output_b , weights[142],stride=1,padding="SAME",dilations= i).numpy()
-    print(block_13_conv1x1_1.shape,'block_13_conv1x1_1')
+    #i*=2
+    block_13_conv1x1_1 = tf.nn.conv1d( block_12_conv1x1_3_output_b , weights[142],stride=1,padding="SAME",dilations= i)
     block_13_conv1x1_1_b = tf.add(block_13_conv1x1_1,weights[143]) #TODO add the rest of the biases to the model explicitly
-    print(block_13_conv1x1_1_b.shape,'block_13_conv1x1_1_b')
     del block_13_conv1x1_1
 
-    block_13_prelu1 = block_13_conv1x1_1_b #parametric_relu(, weights[144])
-    print(block_13_prelu1.shape,'block_13_prelu1')
+    block_13_prelu1 = parametric_relu(block_13_conv1x1_1_b, weights[144])
     del block_13_conv1x1_1_b
 
-    block_13_LayerNorm1 = tf.nn.dropout(block_13_prelu1,rate= .1 ).numpy()
-    print(block_13_LayerNorm1.shape,'block_13_LayerNorm1')
+    block_13_LayerNorm1 = tf.nn.dropout(block_13_prelu1,rate= .1 )
     del block_13_prelu1
 
-    block_13_deconv1 = tf.nn.conv1d(block_13_LayerNorm1, weights[145], stride=1, padding="SAME").numpy()
-    print(block_13_deconv1.shape,'block_13_deconv1')
+    block_13_deconv1 = tf.nn.conv1d(block_13_LayerNorm1, weights[145], stride=1, padding="SAME")
     del block_13_LayerNorm1
     block_13_deconv1_b = tf.add(block_13_deconv1,weights[146])
-    print(block_13_deconv1_b.shape,'block_13_deconv1_b')
     del block_13_deconv1
 
-    block_13_prelu2 = block_13_deconv1_b #parametric_relu(, weights[147])
-    print(block_13_prelu2.shape,'block_13_prelu2')
+    block_13_prelu2 = parametric_relu(block_13_deconv1_b, weights[147])
     del block_13_deconv1_b
 
-    block_13_LayerNorm2 = tf.nn.dropout(block_13_prelu2,rate= .1 ).numpy()
-    print(block_13_LayerNorm2.shape,'block_13_LayerNorm2')
+    block_13_LayerNorm2 = tf.nn.dropout(block_13_prelu2,rate= .1 )
     del block_13_prelu2
 
-    block_13_conv1x1_2_skip = tf.nn.conv1d(block_13_LayerNorm2,weights[148],stride=1,padding="SAME") .numpy()
-    print(block_13_conv1x1_2_skip.shape,'block_13_conv1x1_2_skip')
+    block_13_conv1x1_2_skip = tf.nn.conv1d(block_13_LayerNorm2,weights[148],stride=1,padding="SAME") #to skip connection
     block_13_conv1x1_2_skip_b = tf.add(block_13_conv1x1_2_skip,weights[149])
-    print(block_13_conv1x1_2_skip_b.shape,'block_13_conv1x1_2_skip_b')
     running_sum += block_13_conv1x1_2_skip_b
     del block_13_conv1x1_2_skip
     del block_13_conv1x1_2_skip_b
 
-    block_13_conv1x1_3_output = tf.nn.conv1d(block_13_LayerNorm2, weights[150],stride=1,padding="SAME").numpy()
-    print(block_13_conv1x1_3_output.shape,'block_13_conv1x1_3_output')
+    block_13_conv1x1_3_output = tf.nn.conv1d(block_13_LayerNorm2, weights[150],stride=1,padding="SAME")
     block_13_conv1x1_3_output_b = tf.add(block_13_conv1x1_3_output,weights[151])
-    print(block_13_conv1x1_3_output_b.shape,'block_13_conv1x1_3_output_b')
     del block_13_LayerNorm2
     del block_13_conv1x1_3_output
 
 
 
 
-    sep_prelu1 =  running_sum #parametric_relu(, weights[152])
-    print(sep_prelu1.shape)
+    sep_prelu1 =  parametric_relu(running_sum, weights[152])
 
-    sep_conv1x1_2 = tf.nn.conv1d(sep_prelu1, weights[153],stride=1,padding="SAME",dilations=1).numpy()
-    print(sep_conv1x1_2.shape,'sep_conv1x1_2')
+    sep_conv1x1_2 = tf.nn.conv1d(sep_prelu1, weights[153],stride=1,padding="SAME",dilations=1)
     del sep_prelu1
     sep_conv1x1_2_b = tf.add(sep_conv1x1_2,weights[154])
-    print(sep_conv1x1_2_b.shape,'sep_conv1x1_2_b')
     del sep_conv1x1_2
 
     sigmoid = tf.sigmoid(sep_conv1x1_2_b)
@@ -883,37 +681,35 @@ def big_gabario_forward_pass(input_tensor):
 
 
     #decoder
-    dec_conv1x1_1 = tf.nn.conv1d(sigmoid, weights[155],stride=1,padding="SAME",dilations=1).numpy()
+    dec_conv1x1_1 = tf.nn.conv1d(sigmoid, weights[155],stride=1,padding="SAME",dilations=1)
     del sigmoid
     dec_conv1x1_1_b = tf.add(dec_conv1x1_1,weights[156])
     del dec_conv1x1_1
 
-    dec_prelu1 = dec_conv1x1_1_b #parametric_relu(, weights[157])
-    print(dec_prelu1.shape,'dec_prelu1')
+    dec_prelu1 = parametric_relu(dec_conv1x1_1_b, weights[157])
     del dec_conv1x1_1_b
 
-    dec_LayerNorm1 = tf.nn.dropout(dec_prelu1,rate= .1 ).numpy()
+    dec_LayerNorm1 = tf.nn.dropout(dec_prelu1,rate= .1 )
     del dec_prelu1
 
-    dec_deconv1 = tf.nn.conv1d(dec_LayerNorm1, weights[158], stride=1, padding="SAME").numpy()
+    dec_deconv1 = tf.nn.conv1d(dec_LayerNorm1, weights[158], stride=1, padding="SAME")
     del dec_LayerNorm1
     dec_deconv1_b = tf.add(dec_deconv1,weights[159])
     del dec_deconv1
 
-    dec_prelu2 = dec_deconv1_b #parametric_relu(, weights[160])
-    print(dec_prelu2.shape,'dec_prelu2')
+    dec_prelu2 = parametric_relu(dec_deconv1_b, weights[160])
     del dec_deconv1_b
 
-    dec_LayerNorm2 = tf.nn.dropout(dec_prelu2,rate= .1 ).numpy()
+    dec_LayerNorm2 = tf.nn.dropout(dec_prelu2,rate= .1 )
     del dec_prelu2
 
-    dec_conv1x1_2_skip = tf.nn.conv1d(dec_LayerNorm2,weights[161],stride=1,padding="SAME") .numpy()
+    dec_conv1x1_2_skip = tf.nn.conv1d(dec_LayerNorm2,weights[161],stride=1,padding="SAME") #to skip connection
     dec_conv1x1_2_skip_b = tf.add(dec_conv1x1_2_skip,weights[162])
     del dec_conv1x1_2_skip
     del dec_conv1x1_2_skip_b
 
 
-    dec_conv1x1_3_output = tf.nn.conv1d(dec_LayerNorm2, weights[163],stride=1,padding="SAME").numpy()
+    dec_conv1x1_3_output = tf.nn.conv1d(dec_LayerNorm2, weights[163],stride=1,padding="SAME")
     del dec_LayerNorm2
     return tf.add(dec_conv1x1_3_output,weights[164])
 
@@ -979,7 +775,6 @@ def normalize_batch(batch):
 
     return out
 
-@tf.function
 def parametric_relu(_x,alphas):
     '''
     x_ : the tensor you wish to apply parametric_relu to
@@ -987,10 +782,9 @@ def parametric_relu(_x,alphas):
     '''
     # if x is outta a conv ie [batch x 16 x 4 channels]
     # we need shape[-2]*shape[-1]
-    print(_x.shape,alphas.shape)
-    #pos = tf.nn.relu(_x,)
-    #neg = tf.reshape(alphas * (_x - abs(_x)) * 0.5,tf.shape(pos))
-    return _x #pos #+ neg
+    pos = tf.nn.relu(_x)
+    neg = tf.reshape(alphas * (_x - abs(_x)) * 0.5,tf.shape(pos))
+    return pos + neg
 
 def mix_audio(audio, epoch):
     # record = shape[data,label]
