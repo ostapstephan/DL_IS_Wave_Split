@@ -133,7 +133,6 @@ class Conv_1D_Block(object):
 
     def getShapesofBlock(self):
         # the input shape is [batch, [self.input_shape], self.hyper_params['B'] ]
-
         conv1 = tf.keras.layers.Conv1D(filters=self.hyper_params['H'],kernel_size = self.hyper_params['L'],padding='same')
         conv1.build(self.input_shape) # should be (batch,B,L)
         self.weights_shape.append([tf.shape(x).numpy() for x in conv1.trainable_weights] )
@@ -142,7 +141,6 @@ class Conv_1D_Block(object):
         prelu1_inp = conv1.compute_output_shape(self.input_shape)
         prelu1.build(prelu1_inp)
         self.weights_shape.append([tf.shape(prelu1.trainable_weights).numpy()])
-
 
         LayerNorm1 = tf.keras.layers.LayerNormalization(axis=2,dtype='float32')
         LayerNorm1_inp = prelu1.compute_output_shape(prelu1_inp)
@@ -222,7 +220,6 @@ class Conv_1D_Block(object):
 
     def section_3(self,input_tensor):
         deconv1 = tf.nn.conv1d(input_tensor, self.weights[3][0], stride=1, padding="SAME")
-
         deconv1_b = tf.add(deconv1,self.weights[3][1])
         del deconv1
         return deconv1_b
