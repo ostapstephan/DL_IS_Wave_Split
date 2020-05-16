@@ -3,12 +3,15 @@ import os
 import numpy as np
 import soundfile as sf
 import tensorflow as tf
+import tfrecord
 import torch
+import pandas as pd
 
 from tqdm import tqdm
 from IPython import embed
 from torch import nn
 from torch.utils import data
+from scipy.io import wavfile
 
 TOTAL_VAR = 0
 BATCH_SIZE = 32
@@ -41,7 +44,7 @@ def get_dataset_from_tfrecords(tfrecords_dir='tfrecords', split='train', batch_s
     files_ds = files_ds.with_options(ignore_order)
 
     # Read TFRecord files in an interleaved order
-    ds = tf.data.TFRecordDataset(files_ds,compression_type='ZLIB',num_parallel_reads=2)
+    ds = tf.data.TFRecordDataset(files_ds,compression_type='ZLIB')#,num_parallel_reads=2)
     # load batch size examples
     ds = ds.batch(batch_size)
 
@@ -53,10 +56,13 @@ def get_dataset_from_tfrecords(tfrecords_dir='tfrecords', split='train', batch_s
         # ds = ds.repeat(n_epochs)
     return ds.prefetch(buffer_size=1)
 
+
+
 def mix_audio(audio ):
     global CUR_EPOCH
     return tf.add(audio,tf.roll(audio,1+CUR_EPOCH,axis=0))
 
+'''
 def create_label(audio):
     global CUR_EPOCH
     return tf.squeeze(tf.stack([audio, tf.roll(audio,1+CUR_EPOCH,axis=0)],axis=2), axis = -1)
@@ -89,6 +95,77 @@ class Dataset(data.Dataset):
         y_train = torch.tensor(y.numpy()).permute(0,2,1)
 
         return x_train, y_train
+'''
+
+class Data_set(data.Dataset):
+    'Characterizes a dataset for PyTorch'
+    def __init__(self,split='train'):
+        'Initialization'
+        self.split=split
+        base = '/home/ostap/Documents/DL_IS_Wave_Split'
+
+        if split not in ('train', 'test', 'validate'):
+            raise ValueError("split must be either 'train', 'test' or 'validate'")
+
+        if split =='train':         # train
+            df_i = pd.read_csv(os.path.join(base,'train_shuf_meta.csv'))
+        elif split =='validate':    # val
+            df_i = pd.read_csv(os.path.join(base,'val_shuf_meta.csv'),chunksize=1024)
+        else:                       # test
+            df_i = pd.read_csv(os.path.join(base,'test_shuf_meta.csv'),chunksize=1024)
+        
+        self.df_i = df_i
+        self.gen = self.gen(df_i)
+
+    def gen(self,df_i):
+        '''
+        Make a generator object to return 1 sample at a time 
+        input: pandas dataframe 
+        output: one row
+        '''
+        for r in df_i.iterrows():
+            yield r 
+
+    def __len__(self):
+        'Denotes the total number of samples'
+        #TODO find and get length of tf_records
+        print(self.df_i.shape[0])
+        return self.df_i.shape[0]
+        '''
+        global BATCH_SIZE
+        if self.split=='train':
+            return 445015//BATCH_SIZE
+        else:
+            return 55628//BATCH_SIZE
+        '''
+
+    def normalize_batch(self,tw):
+        '''
+        this is used to normalize the TF record so that we have two
+        equal volume audio tracks
+        [batch_size, sample_len_in_sec*sample_rate]
+        '''
+
+        #tw = torch.tensor(batch,dtype=torch.float32)
+        ts,tm = torch.std_mean(tw,dim= 1) 
+        out = ((tw.T -tm)/(2*ts)).T # normalize data to be -1 to 1
+        return out
+
+
+    def __getitem__(self, index):
+        'Generates one sample of data'
+        f0 = next(iter(self.gen))[1]['loc_of_wav8k']
+        f1 = next(iter(self.gen))[1]['loc_of_wav8k']
+
+        sr, w0 = wavfile.read(f0)
+        sr, w1 = wavfile.read(f1)
+        
+        w_torch = torch.Tensor(np.stack([w0,w1]))
+        w = self.normalize_batch(w_torch)
+
+        # div by 2 to keep in range -1:1
+        x = (torch.sum(w,axis=0)/2).expand(1,w.shape[1])  
+        return x, w 
 
 
 class Encoder(torch.nn.Module):
@@ -292,19 +369,19 @@ def main():
     global CUR_EPOCH
     global BATCH_SIZE
     # Parameters
-    params = {'batch_size': 1, #MUST BE 1
+    params = {'batch_size': 16, #MUST BE 1
               'shuffle': False,
-              'num_workers': 0}
+              'num_workers': 8}
              # 'pin_memory': True } #fix this bug w pin memory and num workers <1
 
     ############################################################################
     # Generators
     # https://stanford.edu/~shervine/blog/pytorch-how-to-generate-data-parallel
-    training_set = Dataset(split='train')
+    training_set = Data_set(split='train')
     training_generator = torch.utils.data.DataLoader(training_set, **params)
 
-    validation_set = Dataset(split='validate')
-    validation_generator = torch.utils.data.DataLoader(validation_set, **params)
+    #validation_set = Dataset(split='validate')
+    #validation_generator = torch.utils.data.DataLoader(validation_set, **params)
     ############################################################################
 
     #
@@ -326,7 +403,6 @@ def main():
     for CUR_EPOCH in range(EPOCHS):
         counter=0
         for data, labels in tqdm(training_generator):
-            data, labels = data.squeeze(0), labels.squeeze(0)
             data, labels = data.to('cuda:0'), labels.to('cuda:0')
             # Forward pass: Compute predicted y by passing x to the model
             y_pred = model( data )
@@ -341,10 +417,11 @@ def main():
             loss.backward()
             optimizer.step()
 
-            if CUR_EPOCH%5==0 :
-                torch.save(model.state_dict(), f'/share/audiobooks/model_checkpoints/epoch_{CUR_EPOCH}_{loss.item()}.ckpt')
-
             counter+=1
+
+        if CUR_EPOCH%1==0 :
+            torch.save(model.state_dict(), f'/share/audiobooks/model_checkpoints/epoch_{CUR_EPOCH}_{loss.item()}.ckpt')
+
 
 
 if __name__ == '__main__':
