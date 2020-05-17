@@ -14,7 +14,7 @@ from torch.utils import data
 from scipy.io import wavfile
 
 TOTAL_VAR = 0
-BATCH_SIZE = 51
+BATCH_SIZE = 48
 EPOCHS = 1000
 CUR_EPOCH = 0
 
@@ -89,7 +89,7 @@ class Data_set(data.Dataset):
 
         # clip outputs to +-2 cuz we found nans in the dataset
         out[out>2]=2
-        out[out<2]=-2
+        out[out<-2]=-2
         out[torch.isnan(out)]=0
 
         return out
@@ -295,15 +295,59 @@ def permutation_loss( label0, pred):
     else:
         return b
 
+def write_output_to_wav(k,truth,predictions,path_,sample_rate=8000):
+    print("in output:")
+    print(truth.shape)
+    print(predictions.shape)
+    print((truth[0][0].cpu().detach().numpy()))
 
-def main():
+    for i in range(predictions.shape[0]):
+        for j in range(predictions.shape[1]):
+            sf.write(f'{path_}/{k}output{i}_{j}.wav', ((predictions[i][j].cpu().detach().numpy())) , sample_rate,'PCM_16')
+            sf.write(f'{path_}/{k}truth{i}_{j}.wav',  (truth[i][j].cpu().detach().numpy()), sample_rate,'PCM_16')
+
+def eval_ckpt(path_to_ckpt):
+
+    params = {'batch_size': 2,
+              'shuffle': False,
+              'num_workers': 1}
+
+    dataset = Data_set(split='train')
+    generator = torch.utils.data.DataLoader(dataset, **params)
+
+    device = torch.device("cuda")
+    gpus = [0,1,2] #run this on all 3 of my gpus
+
+    # Construct our model by instantiating the class defined above
+    model = Conv_tas_net(7,2) #i[0].shape[1],7,2
+    model = nn.DataParallel(model,device_ids=gpus)
+    model.load_state_dict(torch.load(path_to_ckpt))
+    model.to(device)
+    counter = 0
+    for data, labels in generator:
+
+        data, labels = data.cuda(non_blocking=True), labels.cuda(non_blocking=True)
+        # Forward pass: Compute predicted y by passing x to the model
+        y_pred = model( data )
+        loss = permutation_loss(y_pred, labels) #TODO THIS IS WRONG
+        write_output_to_wav(counter,labels,y_pred,'examples')
+        if counter % 20 == 0:
+            print(f'Validation epoch {CUR_EPOCH}, Counter:{counter}, Loss: {loss}')
+        counter+=1
+
+
+def resume_from_ckpt(path_to_ckpt):
     global CUR_EPOCH
     global BATCH_SIZE
-    # Parameters
-    params = {'batch_size': BATCH_SIZE, #MUST BE 1
+    global EPOCHS
+
+    params = {'batch_size': BATCH_SIZE,
               'shuffle': False,
               'num_workers': 8}
-             # 'pin_memory': True } #fix this bug w pin memory and num workers <1
+
+    val_params = {'batch_size': BATCH_SIZE//4,
+              'shuffle': False,
+              'num_workers': 8}
 
     ############################################################################
     # Generators
@@ -312,7 +356,99 @@ def main():
     training_generator = torch.utils.data.DataLoader(training_set, **params)
 
     validation_set = Data_set(split='validate')
-    validation_generator = torch.utils.data.DataLoader(validation_set, **params)
+    validation_generator = torch.utils.data.DataLoader(validation_set, **val_params)
+    ############################################################################
+
+    device = torch.device("cuda")
+    gpus = [0,1,2] #run this on all 3 of my gpus
+
+    # load ckpt file
+    checkpoint = torch.load(path_to_ckpt)
+    # state = {'epoch': epoch , 'model': model.state_dict(),
+    #         'optimizer': optimizer.state_dict(), 'scheduler': scheduler.state_dict()}
+
+    CUR_EPOCH = checkpoint['epoch']
+    # Construct our model by instantiating the class defined above
+    model = Conv_tas_net(7,2) #i[0].shape[1],7,2
+    model = nn.DataParallel(model,device_ids=gpus)
+    model.load_state_dict(checkpoint['model'])
+    model.cuda() #Put the model on gpu, To run on multiple GPUs look here: https://pytorch.org/tutorials/beginner/blitz/data_parallel_tutorial.html
+    #model.to(device) not sure if its this or model.cuda so dont hate plz
+    #print(model)
+
+    # Construct our loss function and an Optimizer. The call to model.parameters()
+    # in the SGD constructor will contain the learnable parameters of the two
+    # nn.Linear modules which are members of the model.
+    criterion = permutation_loss
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5, weight_decay=.1)
+    optimizer.load_state_dict(checkpoint['optimizer'])
+
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=.5, last_epoch=-1)
+    scheduler.load_state_dict(checkpoint['scheduler'])
+
+    for CUR_EPOCH in range(EPOCHS):
+        counter=0
+        flag = True
+        for data, labels in tqdm(training_generator):
+            #data, labels = data.to('cuda:0'), labels.to('cuda:0')
+            data, labels = data.cuda(non_blocking=True), labels.cuda(non_blocking=True)
+            # Zero gradients,
+            optimizer.zero_grad()
+            # Forward pass: Compute predicted y by passing x to the model
+            y_pred = model( data )
+
+            # perform a backward pass, and update the weights.
+            # Compute and print loss
+            loss = criterion(y_pred, labels) #TODO THIS IS WRONG
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(),max_norm= 5, norm_type=2)
+            optimizer.step()
+
+            if torch.isnan(loss):
+                if flag:
+                    embed()
+
+            if counter % 20 == 0:
+                print(f'Epoch {CUR_EPOCH}, Counter:{counter}, Loss: {loss}')
+            counter+=1
+        break
+
+        if CUR_EPOCH%1==0 :
+            state = {'epoch': CUR_EPOCH , 'model': model.state_dict(),
+                'optimizer': optimizer.state_dict(), 'scheduler': scheduler.state_dict()}
+            torch.save(state, f'/share/audiobooks/model_checkpoints/epoch_{CUR_EPOCH}_{loss}.ckpt')
+
+        scheduler.step()
+
+        print('ABOUT TO RE INIT GENERATOR')
+        training_set.re_init()
+        validation_set.re_init()
+        print('SUCCESSFULLY RESET')
+
+    pass
+
+
+def train():
+    global CUR_EPOCH
+    global BATCH_SIZE
+    # Parameters
+    params = {'batch_size': BATCH_SIZE,
+              'shuffle': False,
+              'num_workers': 8}
+             # 'pin_memory': True } #fix this bug w pin memory and num workers <1
+
+    val_params = {'batch_size': BATCH_SIZE//4,
+              'shuffle': False,
+              'num_workers': 8}
+
+    ############################################################################
+    # Generators
+    # https://stanford.edu/~shervine/blog/pytorch-how-to-generate-data-parallel
+    training_set = Data_set(split='train')
+    training_generator = torch.utils.data.DataLoader(training_set, **params)
+
+    validation_set = Data_set(split='validate')
+    validation_generator = torch.utils.data.DataLoader(validation_set, **val_params)
     ############################################################################
 
     gpus = [0,1,2] #run this on all 3 of my gpus
@@ -338,8 +474,8 @@ def main():
         counter=0
         flag = True
         for data, labels in tqdm(training_generator):
-            # data, labels = data.to('cuda:0'), labels.to('cuda:0')
-            #data, labels = data.cuda(non_blocking=True), labels.cuda(non_blocking=True)
+            #data, labels = data.to('cuda:0'), labels.to('cuda:0')
+            data, labels = data.cuda(non_blocking=True), labels.cuda(non_blocking=True)
             # Zero gradients,
             optimizer.zero_grad()
             # Forward pass: Compute predicted y by passing x to the model
@@ -358,11 +494,12 @@ def main():
 
             if counter % 20 == 0:
                 print(f'Epoch {CUR_EPOCH}, Counter:{counter}, Loss: {loss}')
-
             counter+=1
 
+
+        '''
         for data, labels in tqdm(validation_generator):
-            #data, labels = data.cuda(non_blocking=True), labels.cuda(non_blocking=True)
+            data, labels = data.cuda(non_blocking=True), labels.cuda(non_blocking=True)
             # Forward pass: Compute predicted y by passing x to the model
             y_pred = model( data )
             loss = criterion(y_pred, labels) #TODO THIS IS WRONG
@@ -371,12 +508,16 @@ def main():
                 print(f'Validation epoch {CUR_EPOCH}, Counter:{counter}, Loss: {loss}')
             counter+=1
 
-        scheduler.step()
+        '''
+
 
         if CUR_EPOCH%1==0 :
-            torch.save(model.state_dict(), f'/share/audiobooks/model_checkpoints/epoch_{CUR_EPOCH}_{loss}.ckpt')
+            state = {'epoch': CUR_EPOCH , 'model': model.state_dict(),
+             'optimizer': optimizer.state_dict(), 'scheduler': scheduler.state_dict()}
+            torch.save(state, f'/share/audiobooks/model_checkpoints/epoch_{CUR_EPOCH}_{loss}.ckpt')
 
-        #embed()
+        scheduler.step()
+
         print('ABOUT TO RE INIT GENERATOR')
         training_set.re_init()
         validation_set.re_init()
@@ -384,4 +525,6 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    train()
+    #eval_ckpt()
+    #resume_from_ckpt( '/share/audiobooks/model_checkpoints/epoch_9_0.34857264161109924.ckpt')
