@@ -14,10 +14,11 @@ from torch.utils import data
 from scipy.io import wavfile
 
 TOTAL_VAR = 0
-BATCH_SIZE = 32
+BATCH_SIZE = 51
 EPOCHS = 1000
 CUR_EPOCH = 0
 
+'''
 def _parse_batch(record_batch, sample_rate, duration):
     n_samples = sample_rate * duration
     # Create a description of the features
@@ -62,7 +63,6 @@ def mix_audio(audio ):
     global CUR_EPOCH
     return tf.add(audio,tf.roll(audio,1+CUR_EPOCH,axis=0))
 
-'''
 def create_label(audio):
     global CUR_EPOCH
     return tf.squeeze(tf.stack([audio, tf.roll(audio,1+CUR_EPOCH,axis=0)],axis=2), axis = -1)
@@ -123,7 +123,11 @@ class Data_set(data.Dataset):
         input: pandas dataframe 
         output: one row
         '''
+        ssd_base= '/home/ostap/Documents/DL_IS_Wave_Split/wav8k_split' 
         for r in df_i.iterrows():
+            # this will use the dataset on the ssd
+            base,name =  os.path.split(r[1]['loc_of_wav8k'])
+            r[1]['loc_of_wav8k']= os.path.join(ssd_base,name)
             yield r 
 
     def __len__(self):
@@ -369,9 +373,9 @@ def main():
     global CUR_EPOCH
     global BATCH_SIZE
     # Parameters
-    params = {'batch_size': 16, #MUST BE 1
+    params = {'batch_size': BATCH_SIZE, #MUST BE 1
               'shuffle': False,
-              'num_workers': 8}
+              'num_workers': 0}
              # 'pin_memory': True } #fix this bug w pin memory and num workers <1
 
     ############################################################################
@@ -380,37 +384,41 @@ def main():
     training_set = Data_set(split='train')
     training_generator = torch.utils.data.DataLoader(training_set, **params)
 
-    #validation_set = Dataset(split='validate')
-    #validation_generator = torch.utils.data.DataLoader(validation_set, **params)
+    validation_set = Data_set(split='validate')
+    validation_generator = torch.utils.data.DataLoader(validation_set, **params)
     ############################################################################
 
     #
-    # x = mix_audio(tf.expand_dims(i[0],2),0)
-    # x_train = torch.tensor(x.numpy()).permute(0,2,1).cuda()
+
+    gpus = [0,1,2]
 
     # Construct our model by instantiating the class defined above
     model = Conv_tas_net(7,2) #i[0].shape[1],7,2
+    model = nn.DataParallel(model,device_ids=gpus)
+    #model.set_device(gpu) #TODO make this 0,1,2
     model.cuda() #Put the model on gpu, To run on multiple GPUs look here: https://pytorch.org/tutorials/beginner/blitz/data_parallel_tutorial.html
+
     #print(model)
 
     # Construct our loss function and an Optimizer. The call to model.parameters()
     # in the SGD constructor will contain the learnable parameters of the two
     # nn.Linear modules which are members of the model.
-    #criterion = torch.nn.MSELoss(reduction='sum')
     criterion = permutation_loss
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
     for CUR_EPOCH in range(EPOCHS):
         counter=0
         for data, labels in tqdm(training_generator):
-            data, labels = data.to('cuda:0'), labels.to('cuda:0')
+            # data, labels = data.to('cuda:0'), labels.to('cuda:0')
+            data, labels = data.cuda(non_blocking=True), labels.cuda(non_blocking=True)
+            
             # Forward pass: Compute predicted y by passing x to the model
             y_pred = model( data )
-            # Compute and print loss
 
+            # Compute and print loss
             loss = criterion(y_pred, labels) #TODO THIS IS WRONG
-            if counter % 1 == 0:
-                print(counter, loss.item())
+            if counter % 10 == 0:
+                print(CUR_EPOCH, counter, loss.item())
 
             # Zero gradients, perform a backward pass, and update the weights.
             optimizer.zero_grad()
