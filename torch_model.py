@@ -18,123 +18,57 @@ BATCH_SIZE = 51
 EPOCHS = 1000
 CUR_EPOCH = 0
 
-'''
-def _parse_batch(record_batch, sample_rate, duration):
-    n_samples = sample_rate * duration
-    # Create a description of the features
-    feature_description = {
-        'audio': tf.io.FixedLenFeature([n_samples], tf.float32),
-        'label': tf.io.FixedLenFeature([1], tf.int64),
-    }
-
-    # Parse the input `tf.Example` proto using the dictionary above
-    example = tf.io.parse_example(record_batch, feature_description)
-    return example['audio'], example['label']
-
-def get_dataset_from_tfrecords(tfrecords_dir='tfrecords', split='train', batch_size=64, sample_rate=8000, duration=5):
-    if split not in ('train', 'test', 'validate'):
-        raise ValueError("split must be either 'train', 'test' or 'validate'")
-
-    # List all *.tfrecord files for the selected split
-    pattern = os.path.join(tfrecords_dir, f'{split}*.tfrecord')
-    files_ds = tf.data.Dataset.list_files(pattern)
-
-    # Disregard data order in favor of reading speed
-    ignore_order = tf.data.Options()
-    ignore_order.experimental_deterministic = False
-    files_ds = files_ds.with_options(ignore_order)
-
-    # Read TFRecord files in an interleaved order
-    ds = tf.data.TFRecordDataset(files_ds,compression_type='ZLIB')#,num_parallel_reads=2)
-    # load batch size examples
-    ds = ds.batch(batch_size)
-
-    # Parse a batch into a dataset of [audio, label] pairs
-    ds = ds.map(lambda x: _parse_batch(x, sample_rate, duration))
-
-    # Repeat the training data for n_epochs. Don't repeat test/validate splits.
-    # if split == 'train':
-        # ds = ds.repeat(n_epochs)
-    return ds.prefetch(buffer_size=1)
-
-
-
-def mix_audio(audio ):
-    global CUR_EPOCH
-    return tf.add(audio,tf.roll(audio,1+CUR_EPOCH,axis=0))
-
-def create_label(audio):
-    global CUR_EPOCH
-    return tf.squeeze(tf.stack([audio, tf.roll(audio,1+CUR_EPOCH,axis=0)],axis=2), axis = -1)
-
-class Dataset(data.Dataset):
-    'Characterizes a dataset for PyTorch'
-    def __init__(self,split='train'):
-        'Initialization'
-        self.split=split
-        self.train_ds = get_dataset_from_tfrecords(tfrecords_dir='/share/audiobooks/tf_records', split=split, batch_size=BATCH_SIZE)
-
-    def __len__(self):
-        'Denotes the total number of samples'
-        #TODO find and get length of tf_records
-        global BATCH_SIZE
-        if self.split=='train':
-            return 445015//BATCH_SIZE
-        else:
-            return 55628//BATCH_SIZE
-
-    def __getitem__(self, index):
-        'Generates one sample of data'
-        # Select sample
-        raw = next(iter(self.train_ds))[0]
-
-        x = mix_audio(tf.expand_dims(raw,2))
-        x_train = torch.tensor(x.numpy()).permute(0,2,1)
-
-        y = create_label(tf.expand_dims(raw,2))
-        y_train = torch.tensor(y.numpy()).permute(0,2,1)
-
-        return x_train, y_train
-'''
 
 class Data_set(data.Dataset):
     'Characterizes a dataset for PyTorch'
     def __init__(self,split='train'):
         'Initialization'
         self.split=split
-        base = '/home/ostap/Documents/DL_IS_Wave_Split'
+        self.base = '/home/ostap/Documents/DL_IS_Wave_Split'
 
         if split not in ('train', 'test', 'validate'):
             raise ValueError("split must be either 'train', 'test' or 'validate'")
 
         if split =='train':         # train
-            df_i = pd.read_csv(os.path.join(base,'train_shuf_meta.csv'))
+            df_i = pd.read_csv(os.path.join(self.base,'train_shuf_meta.csv')).sample(frac=1)
         elif split =='validate':    # val
-            df_i = pd.read_csv(os.path.join(base,'val_shuf_meta.csv'),chunksize=1024)
+            df_i = pd.read_csv(os.path.join(self.base,'val_shuf_meta.csv')).sample(frac=1)
         else:                       # test
-            df_i = pd.read_csv(os.path.join(base,'test_shuf_meta.csv'),chunksize=1024)
-        
+            df_i = pd.read_csv(os.path.join(self.base,'test_shuf_meta.csv')).sample(frac=1)
+
         self.df_i = df_i
-        self.gen = self.gen(df_i)
+        self.generator = self.gen(df_i)
+
+    def re_init(self):
+        if self.split =='train':         # train
+            df_i = pd.read_csv(os.path.join(self.base,'train_shuf_meta.csv')).sample(frac=1)
+        elif self.split =='validate':    # val
+            df_i = pd.read_csv(os.path.join(self.base,'val_shuf_meta.csv')).sample(frac=1)
+        else:                       # test
+            df_i = pd.read_csv(os.path.join(self.base,'test_shuf_meta.csv')).sample(frac=1)
+
+        self.df_i = df_i
+        self.generator = self.gen(df_i)
+
 
     def gen(self,df_i):
         '''
-        Make a generator object to return 1 sample at a time 
-        input: pandas dataframe 
+        Make a generator object to return 1 sample at a time
+        input: pandas dataframe
         output: one row
         '''
-        ssd_base= '/home/ostap/Documents/DL_IS_Wave_Split/wav8k_split' 
+        #print('in_generator')
+        ssd_base= '/home/ostap/Documents/DL_IS_Wave_Split/wav8k_split'
         for r in df_i.iterrows():
             # this will use the dataset on the ssd
             base,name =  os.path.split(r[1]['loc_of_wav8k'])
             r[1]['loc_of_wav8k']= os.path.join(ssd_base,name)
-            yield r 
+            yield r
 
     def __len__(self):
         'Denotes the total number of samples'
         #TODO find and get length of tf_records
-        print(self.df_i.shape[0])
-        return self.df_i.shape[0]
+        return self.df_i.shape[0]//2 # getitiem is called twice in one pass
         '''
         global BATCH_SIZE
         if self.split=='train':
@@ -149,27 +83,25 @@ class Data_set(data.Dataset):
         equal volume audio tracks
         [batch_size, sample_len_in_sec*sample_rate]
         '''
-
         #tw = torch.tensor(batch,dtype=torch.float32)
-        ts,tm = torch.std_mean(tw,dim= 1) 
+        ts,tm = torch.std_mean(tw,dim= 1)
         out = ((tw.T -tm)/(2*ts)).T # normalize data to be -1 to 1
         return out
 
-
     def __getitem__(self, index):
         'Generates one sample of data'
-        f0 = next(iter(self.gen))[1]['loc_of_wav8k']
-        f1 = next(iter(self.gen))[1]['loc_of_wav8k']
+        f0 = next(iter(self.generator))[1]['loc_of_wav8k']
+        f1 = next(iter(self.generator))[1]['loc_of_wav8k']
 
         sr, w0 = wavfile.read(f0)
         sr, w1 = wavfile.read(f1)
-        
+
         w_torch = torch.Tensor(np.stack([w0,w1]))
         w = self.normalize_batch(w_torch)
 
         # div by 2 to keep in range -1:1
-        x = (torch.sum(w,axis=0)/2).expand(1,w.shape[1])  
-        return x, w 
+        x = (torch.sum(w,axis=0)/2).expand(1,w.shape[1])
+        return x, w
 
 
 class Encoder(torch.nn.Module):
@@ -191,7 +123,6 @@ class Encoder(torch.nn.Module):
 
         self.padding = (self.hyper_params['L']-1)//2
         self.dconv = nn.Conv1d(1,out_channels=self.hyper_params['H'],kernel_size = self.hyper_params['L'], stride=self.hyper_params['L']//2, padding = self.padding, bias = False)
-
     def forward(self, input_tensor):
         return self.dconv(input_tensor)
 
@@ -252,21 +183,13 @@ class Conv_1D_Block(torch.nn.Module):
         self.conv_2_out =  nn.Conv1d(in_channels=self.hyper_params['B'],out_channels=self.hyper_params['B'],kernel_size = self.hyper_params['L'],stride=1 )
 
     def forward(self, input_tensor):
-
         'Forward pass of the conv 1D block'
-        #print('inp\t',input_tensor.shape)
         conv1 = self.conv_1(input_tensor)
-        #print('conv1\t',conv1.shape)
         prelu = self.prelu_1(conv1)
-        #print('prelu\t',prelu.shape)
         layernorm1 = self.LayerNorm_1(prelu)
-        #print('l norm1\t',layernorm1.shape)
         dconv_1 = self.dconv_1(layernorm1)
-        #print('dconv_1\t',dconv_1.shape)
         prelu2 = self.prelu_2(dconv_1)
-        #print('prelu2\t',prelu2.shape)
         temp = self.Layernorm_2(prelu2)
-        #print('temp\t',temp.shape)
         return self.conv_2_out(temp),self.conv_2_skip(temp)
 
 
@@ -349,24 +272,21 @@ class Conv_tas_net(torch.nn.Module):
         return dec
 
 def permutation_loss( label0, pred):
-    label1 = torch.roll(label0,1,2)
 
-    a = torch.mean((label0-pred)**2 , dim =[1,2])
-    b = torch.mean((label1-pred)**2 , dim =[1,2])
+    label1 = torch.roll(label0,1,dims= 1)
 
-    # comment the saving out for later
+    a = torch.mean((label0-pred)**2 ,)
+    b = torch.mean((label1-pred)**2 ,)
+
     #for i in range(label0.shape[0]): # for everything in batch
     #    for j in range(2): # for speaker 0,1
     #        sf.write(f'mixed/l0_{i}_{j}.wav', label0[i,:,j], 8000, 'PCM_16')
     # sf.write(f'mixed/l1_{i}_{j}.wav', label1[i,:,j], 8000, 'PCM_16')
 
-    aa = torch.mean(a)
-    bb = torch.mean(b)
-
-    if aa < bb:
-        return aa
+    if a < b:
+        return a
     else:
-        return bb
+        return b
 
 
 def main():
@@ -375,7 +295,7 @@ def main():
     # Parameters
     params = {'batch_size': BATCH_SIZE, #MUST BE 1
               'shuffle': False,
-              'num_workers': 0}
+              'num_workers': 8}
              # 'pin_memory': True } #fix this bug w pin memory and num workers <1
 
     ############################################################################
@@ -388,9 +308,7 @@ def main():
     validation_generator = torch.utils.data.DataLoader(validation_set, **params)
     ############################################################################
 
-    #
-
-    gpus = [0,1,2]
+    gpus = [0,1,2] #run this on all 3 of my gpus
 
     # Construct our model by instantiating the class defined above
     model = Conv_tas_net(7,2) #i[0].shape[1],7,2
@@ -411,25 +329,33 @@ def main():
         for data, labels in tqdm(training_generator):
             # data, labels = data.to('cuda:0'), labels.to('cuda:0')
             data, labels = data.cuda(non_blocking=True), labels.cuda(non_blocking=True)
-            
+
+            # Zero gradients,
+            optimizer.zero_grad()
+
             # Forward pass: Compute predicted y by passing x to the model
             y_pred = model( data )
 
+            # perform a backward pass, and update the weights.
             # Compute and print loss
             loss = criterion(y_pred, labels) #TODO THIS IS WRONG
-            if counter % 10 == 0:
-                print(CUR_EPOCH, counter, loss.item())
-
-            # Zero gradients, perform a backward pass, and update the weights.
-            optimizer.zero_grad()
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(),max_norm= 1.4, norm_type=2)
             optimizer.step()
 
+            if counter % 20 == 0:
+                print(f'Epoch {CUR_EPOCH}, Counter:{counter}, Loss: {loss}')
             counter+=1
+
+
 
         if CUR_EPOCH%1==0 :
             torch.save(model.state_dict(), f'/share/audiobooks/model_checkpoints/epoch_{CUR_EPOCH}_{loss.item()}.ckpt')
 
+        print('ABOUT TO RE INIT GENERATOR')
+        training_set.re_init()
+        validation_set.re_init()
+        print('SUCCESSFULLY RESET')
 
 
 if __name__ == '__main__':
