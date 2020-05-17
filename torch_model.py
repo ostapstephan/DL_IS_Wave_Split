@@ -86,13 +86,19 @@ class Data_set(data.Dataset):
         #tw = torch.tensor(batch,dtype=torch.float32)
         ts,tm = torch.std_mean(tw,dim= 1)
         out = ((tw.T -tm)/(2*ts)).T # normalize data to be -1 to 1
+
+        # clip outputs to +-2 cuz we found nans in the dataset
+        out[out>2]=2
+        out[out<2]=-2
+        out[torch.isnan(out)]=0
+
         return out
 
     def __getitem__(self, index):
         'Generates one sample of data'
+
         f0 = next(iter(self.generator))[1]['loc_of_wav8k']
         f1 = next(iter(self.generator))[1]['loc_of_wav8k']
-
         sr, w0 = wavfile.read(f0)
         sr, w1 = wavfile.read(f1)
 
@@ -101,6 +107,7 @@ class Data_set(data.Dataset):
 
         # div by 2 to keep in range -1:1
         x = (torch.sum(w,axis=0)/2).expand(1,w.shape[1])
+
         return x, w
 
 
@@ -313,6 +320,7 @@ def main():
     # Construct our model by instantiating the class defined above
     model = Conv_tas_net(7,2) #i[0].shape[1],7,2
     model = nn.DataParallel(model,device_ids=gpus)
+
     #model.set_device(gpu) #TODO make this 0,1,2
     model.cuda() #Put the model on gpu, To run on multiple GPUs look here: https://pytorch.org/tutorials/beginner/blitz/data_parallel_tutorial.html
 
@@ -322,17 +330,18 @@ def main():
     # in the SGD constructor will contain the learnable parameters of the two
     # nn.Linear modules which are members of the model.
     criterion = permutation_loss
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5, weight_decay=.1)
+    # optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=0.9)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=.5, last_epoch=-1)
 
     for CUR_EPOCH in range(EPOCHS):
         counter=0
+        flag = True
         for data, labels in tqdm(training_generator):
             # data, labels = data.to('cuda:0'), labels.to('cuda:0')
-            data, labels = data.cuda(non_blocking=True), labels.cuda(non_blocking=True)
-
+            #data, labels = data.cuda(non_blocking=True), labels.cuda(non_blocking=True)
             # Zero gradients,
             optimizer.zero_grad()
-
             # Forward pass: Compute predicted y by passing x to the model
             y_pred = model( data )
 
@@ -340,18 +349,34 @@ def main():
             # Compute and print loss
             loss = criterion(y_pred, labels) #TODO THIS IS WRONG
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(),max_norm= 1.4, norm_type=2)
+            torch.nn.utils.clip_grad_norm_(model.parameters(),max_norm= 5, norm_type=2)
             optimizer.step()
+
+            if torch.isnan(loss):
+                if flag:
+                    embed()
 
             if counter % 20 == 0:
                 print(f'Epoch {CUR_EPOCH}, Counter:{counter}, Loss: {loss}')
+
             counter+=1
 
+        for data, labels in tqdm(validation_generator):
+            #data, labels = data.cuda(non_blocking=True), labels.cuda(non_blocking=True)
+            # Forward pass: Compute predicted y by passing x to the model
+            y_pred = model( data )
+            loss = criterion(y_pred, labels) #TODO THIS IS WRONG
 
+            if counter % 20 == 0:
+                print(f'Validation epoch {CUR_EPOCH}, Counter:{counter}, Loss: {loss}')
+            counter+=1
+
+        scheduler.step()
 
         if CUR_EPOCH%1==0 :
-            torch.save(model.state_dict(), f'/share/audiobooks/model_checkpoints/epoch_{CUR_EPOCH}_{loss.item()}.ckpt')
+            torch.save(model.state_dict(), f'/share/audiobooks/model_checkpoints/epoch_{CUR_EPOCH}_{loss}.ckpt')
 
+        #embed()
         print('ABOUT TO RE INIT GENERATOR')
         training_set.re_init()
         validation_set.re_init()
