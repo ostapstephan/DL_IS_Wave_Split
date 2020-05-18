@@ -277,23 +277,35 @@ class Conv_tas_net(torch.nn.Module):
         #print(dec.shape)
 
         return dec
+def permutation_loss_helper(label0, pred):
 
-def permutation_loss( label0, pred):
+    label1 = torch.roll(label0,1, dims= 0)
 
-    label1 = torch.roll(label0,1,dims= 1)
+    pred_power = torch.sum(pred**2)/pred.shape[1]
+    label0_power = torch.sum(label0**2)/label0.shape[1]
+    label1_power = torch.sum(label1**2)/label1.shape[1]
 
-    a = torch.mean((label0-pred)**2 ,)
-    b = torch.mean((label1-pred)**2 ,)
+    power_term0 =(torch.log10(pred_power)-torch.log10(label0_power))**2
+    power_term1 =(torch.log10(pred_power)-torch.log10(label1_power))**2
 
-    #for i in range(label0.shape[0]): # for everything in batch
-    #    for j in range(2): # for speaker 0,1
-    #        sf.write(f'mixed/l0_{i}_{j}.wav', label0[i,:,j], 8000, 'PCM_16')
-    # sf.write(f'mixed/l1_{i}_{j}.wav', label1[i,:,j], 8000, 'PCM_16')
+    a = torch.mean((label0-pred)**2 ,)+power_term0
+    b = torch.mean((label1-pred)**2 ,)+power_term1
 
     if a < b:
         return a
     else:
         return b
+
+def permutation_loss( label0, pred):
+    loss=0
+    for b in range(label0.shape[0]):
+        loss += permutation_loss_helper(label0[b],pred[b])
+    #for i in range(label0.shape[0]): # for everything in batch
+    #    for j in range(2): # for speaker 0,1
+    #        sf.write(f'mixed/l0_{i}_{j}.wav', label0[i,:,j], 8000, 'PCM_16')
+    # sf.write(f'mixed/l1_{i}_{j}.wav', label1[i,:,j], 8000, 'PCM_16')
+    return loss/label0.shape[0]
+
 
 def write_output_to_wav(k,truth,predictions,path_,sample_rate=8000):
     print("in output:")
@@ -316,12 +328,13 @@ def eval_ckpt(path_to_ckpt):
     generator = torch.utils.data.DataLoader(dataset, **params)
 
     device = torch.device("cuda")
-    gpus = [0,1,2] #run this on all 3 of my gpus
+    gpus = [0]#,1,2] #run this on all 3 of my gpus
 
     # Construct our model by instantiating the class defined above
     model = Conv_tas_net(7,2) #i[0].shape[1],7,2
     model = nn.DataParallel(model,device_ids=gpus)
-    model.load_state_dict(torch.load(path_to_ckpt))
+    checkpoint = torch.load(path_to_ckpt)
+    model.load_state_dict(checkpoint['model'])
     model.to(device)
     counter = 0
     for data, labels in generator:
@@ -334,7 +347,6 @@ def eval_ckpt(path_to_ckpt):
         if counter % 20 == 0:
             print(f'Validation epoch {CUR_EPOCH}, Counter:{counter}, Loss: {loss}')
         counter+=1
-
 
 def resume_from_ckpt(path_to_ckpt):
     global CUR_EPOCH
@@ -429,6 +441,7 @@ def resume_from_ckpt(path_to_ckpt):
 
 
 def train():
+
     global CUR_EPOCH
     global BATCH_SIZE
     # Parameters
@@ -525,6 +538,6 @@ def train():
 
 
 if __name__ == '__main__':
-    train()
-    #eval_ckpt()
+    #train()
+    eval_ckpt('/share/audiobooks/model_checkpoints/epoch_6_0.18774129450321198.ckpt')
     #resume_from_ckpt( '/share/audiobooks/model_checkpoints/epoch_9_0.34857264161109924.ckpt')
