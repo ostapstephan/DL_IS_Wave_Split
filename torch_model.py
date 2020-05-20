@@ -285,8 +285,13 @@ def permutation_loss_helper(label0, pred):
     label0_power = torch.sum(label0**2)/label0.shape[1]
     label1_power = torch.sum(label1**2)/label1.shape[1]
 
-    power_term0 =(torch.log10(pred_power)-torch.log10(label0_power))**2
-    power_term1 =(torch.log10(pred_power)-torch.log10(label1_power))**2
+
+    power_term0 =torch.abs(torch.log10(pred_power)-torch.log10(label0_power))
+    power_term1 =torch.abs(torch.log10(pred_power)-torch.log10(label1_power))
+
+    # power_output / powerof(truth-output)
+    # poweroftruth / powerof(truth-output)
+    # 20 log(S / N);
 
     a = torch.mean((label0-pred)**2 ,)+power_term0
     b = torch.mean((label1-pred)**2 ,)+power_term1
@@ -311,8 +316,7 @@ def write_output_to_wav(k,truth,predictions,path_,sample_rate=8000):
     print("in output:")
     print(truth.shape)
     print(predictions.shape)
-    print((truth[0][0].cpu().detach().numpy()))
-
+    #print((truth[0][0].cpu().detach().numpy()))
     for i in range(predictions.shape[0]):
         for j in range(predictions.shape[1]):
             sf.write(f'{path_}/{k}output{i}_{j}.wav', ((predictions[i][j].cpu().detach().numpy())) , sample_rate,'PCM_16')
@@ -378,8 +382,8 @@ def resume_from_ckpt(path_to_ckpt):
     checkpoint = torch.load(path_to_ckpt)
     # state = {'epoch': epoch , 'model': model.state_dict(),
     #         'optimizer': optimizer.state_dict(), 'scheduler': scheduler.state_dict()}
-
     CUR_EPOCH = checkpoint['epoch']
+
     # Construct our model by instantiating the class defined above
     model = Conv_tas_net(7,2) #i[0].shape[1],7,2
     model = nn.DataParallel(model,device_ids=gpus)
@@ -393,15 +397,17 @@ def resume_from_ckpt(path_to_ckpt):
     # nn.Linear modules which are members of the model.
     criterion = permutation_loss
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-5, weight_decay=.1)
-    optimizer.load_state_dict(checkpoint['optimizer'])
+    #optimizer.load_state_dict(checkpoint['optimizer'])
 
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=.5, last_epoch=-1)
-    scheduler.load_state_dict(checkpoint['scheduler'])
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=.5, last_epoch=-1)
+    #scheduler.load_state_dict(checkpoint['scheduler'])
 
-    for CUR_EPOCH in range(EPOCHS):
+    for CUR_EPOCH in range(CUR_EPOCH,EPOCHS):
+
         counter=0
         flag = True
         for data, labels in tqdm(training_generator):
+
             #data, labels = data.to('cuda:0'), labels.to('cuda:0')
             data, labels = data.cuda(non_blocking=True), labels.cuda(non_blocking=True)
             # Zero gradients,
@@ -423,7 +429,7 @@ def resume_from_ckpt(path_to_ckpt):
             if counter % 20 == 0:
                 print(f'Epoch {CUR_EPOCH}, Counter:{counter}, Loss: {loss}')
             counter+=1
-        break
+                
 
         if CUR_EPOCH%1==0 :
             state = {'epoch': CUR_EPOCH , 'model': model.state_dict(),
@@ -437,7 +443,6 @@ def resume_from_ckpt(path_to_ckpt):
         validation_set.re_init()
         print('SUCCESSFULLY RESET')
 
-    pass
 
 
 def train():
@@ -481,7 +486,7 @@ def train():
     criterion = permutation_loss
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-5, weight_decay=.1)
     # optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, momentum=0.9)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=.5, last_epoch=-1)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=.5, last_epoch=-1)
 
     for CUR_EPOCH in range(EPOCHS):
         counter=0
@@ -538,6 +543,7 @@ def train():
 
 
 if __name__ == '__main__':
-    #train()
-    eval_ckpt('/share/audiobooks/model_checkpoints/epoch_6_0.18774129450321198.ckpt')
-    #resume_from_ckpt( '/share/audiobooks/model_checkpoints/epoch_9_0.34857264161109924.ckpt')
+    train()
+    #eval_ckpt('/share/audiobooks/model_checkpoints/epoch_50_0.3084511160850525.ckpt')
+    # resume_from_ckpt( '/share/audiobooks/model_checkpoints/epoch_27_0.18791376054286957.ckpt')
+
